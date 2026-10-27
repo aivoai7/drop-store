@@ -4,17 +4,53 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aivoai7/drop-store/server/internal/discount"
 	"github.com/aivoai7/drop-store/server/internal/gateway"
 	"github.com/aivoai7/drop-store/server/internal/money"
+	"github.com/aivoai7/drop-store/server/internal/ratelimit"
 	"github.com/aivoai7/drop-store/server/internal/store"
 )
+
+// trustedProxies is how many reverse proxies sit in front of this service.
+// The client fully controls the X-Forwarded-For chain, so only the entry this
+// many hops from the right can be believed. 0 (default) ignores the header.
+// Set TRUST_PROXIES=1 when nginx/Vercel is in front.
+var trustedProxies = func() int {
+	n, _ := strconv.Atoi(os.Getenv("TRUST_PROXIES"))
+	return n
+}()
+
+// clientIP prefers the trusted X-Forwarded-For hop, then X-Real-IP, then the
+// socket address. Untrusted header values never decide the rate-limit bucket.
+func clientIP(r *http.Request) string {
+	if trustedProxies >= 1 {
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			parts := strings.Split(fwd, ",")
+			if idx := len(parts) - trustedProxies; idx >= 0 {
+				if v := strings.TrimSpace(parts[idx]); v != "" {
+					return v
+				}
+			}
+		}
+		if real := r.Header.Get("X-Real-IP"); real != "" {
+			return real
+		}
+	}
+	host := r.RemoteAddr
+	if i := strings.LastIndexByte(host, ':'); i > 0 {
+		host = host[:i]
+	}
+	return host
+}
 
 func newID() string {
 	b := make([]byte, 12)
@@ -75,11 +111,15 @@ func (s *Server) handleQuote(w http.ResponseWriter, r *http.Request) {
 
 	var disc *discount.Result
 	if req.DiscountCode != nil && *req.DiscountCode != "" {
+		email := ""
+		if u := s.sessionUser(ctx, r); u != nil {
+			email = u.Email
+		}
 		subtotal := money.Amount(0)
 		for _, l := range priced {
 			subtotal += l.Price.Mul(l.Quantity)
 		}
-		res, err := discount.Validate(ctx, s.pool, *req.DiscountCode, subtotal, "")
+		res, err := discount.Validate(ctx, s.pool, *req.DiscountCode, subtotal, email)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Discount check failed")
 			return
@@ -109,7 +149,69 @@ func (s *Server) handleQuote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	opts, _ := shippingOptionsFor(ctx, s, q, country)
-	writeJSON(w, http.StatusOK, renderQuote(q, opts))
+	view := renderQuote(q, discountCode(disc), opts)
+	view.Lines = lineViews(q, priced)
+	view.Currencies, _ = s.activeCurrencies(ctx)
+	view.PaymentMethods, _ = s.enabledPaymentMethods(ctx)
+	writeJSON(w, http.StatusOK, view)
+}
+
+// lineViews renders per-line unit prices the way the TypeScript quote does.
+func lineViews(q store.Quote, lines []store.PricedLine) []lineView {
+	out := make([]lineView, 0, len(lines))
+	for _, l := range lines {
+		out = append(out, lineView{
+			VariantID: l.VariantID,
+			Unit:      money.FormatConverted(l.Price, q.FXRate, q.CurrencySymbol, q.CurrencyDecimals),
+		})
+	}
+	return out
+}
+
+func (s *Server) activeCurrencies(ctx context.Context) ([]currencyOptionView, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT code, name, symbol, rate, decimals FROM "Currency"
+		 WHERE active = true ORDER BY position, code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]currencyOptionView, 0)
+	for rows.Next() {
+		var c currencyOptionView
+		if err := rows.Scan(&c.Code, &c.Name, &c.Symbol, &c.Rate, &c.Decimals); err == nil {
+			out = append(out, c)
+		}
+	}
+	return out, rows.Err()
+}
+
+func (s *Server) enabledPaymentMethods(ctx context.Context) ([]paymentMethodView, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT code, name, description, instructions, automated FROM "PaymentMethod"
+		 WHERE enabled = true ORDER BY position`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]paymentMethodView, 0)
+	for rows.Next() {
+		var m paymentMethodView
+		if err := rows.Scan(&m.Code, &m.Name, &m.Description, &m.Instructions, &m.Automated); err == nil {
+			out = append(out, m)
+		}
+	}
+	return out, rows.Err()
+}
+
+// discountCode pulls the matched code out of a validation result.
+func discountCode(d *discount.Result) string {
+	if d == nil || d.Discount == nil {
+		return ""
+	}
+	return d.Discount.Code
 }
 
 type shippingOptionView struct {
@@ -143,8 +245,19 @@ func (s *Server) handleDiscount(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+
+	lim, limErr := ratelimit.Limit(r.Context(), s.pool, "discount:"+clientIP(r), 20, 10*time.Minute)
+	if limErr != nil {
+		s.log.Error("rate limiter", "err", limErr)
+	}
+	if !lim.OK {
+		writeError(w, http.StatusTooManyRequests,
+			fmt.Sprintf("Too many attempts. Try again in %s.", ratelimit.FormatRetry(lim.RetryAfterSeconds)))
+		return
+	}
 	res, err := discount.Validate(r.Context(), s.pool, req.Code, money.Amount(req.Subtotal), req.Email)
 	if err != nil {
+		s.log.Error("discount check", "err", err)
 		writeError(w, http.StatusInternalServerError, "Discount check failed")
 		return
 	}
@@ -185,6 +298,20 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	// Attribution: the customer session cookie rides through the TS bridge.
+	userID, sessionEmail := s.orderOwner(ctx, r)
+
+	// Same budget as the TypeScript handler: 20 attempts per 10 minutes per IP.
+	lim, err := ratelimit.Limit(ctx, s.pool, "checkout:"+clientIP(r), 20, 10*time.Minute)
+	if err != nil {
+		s.log.Error("rate limiter", "err", err)
+	}
+	if !lim.OK {
+		writeError(w, http.StatusTooManyRequests,
+			fmt.Sprintf("Too many checkout attempts. Try again in %s.", ratelimit.FormatRetry(lim.RetryAfterSeconds)))
+		return
+	}
+
 	settings, err := s.loadSettings(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Settings unavailable")
@@ -207,7 +334,13 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 		for _, l := range priced {
 			subtotal += l.Price.Mul(l.Quantity)
 		}
-		res, err := discount.Validate(ctx, s.pool, *req.DiscountCode, subtotal, strings.ToLower(req.Email))
+		// Per-email discount limits use the account email when signed in; the
+		// order email is client-typed and rotating it would dodge reuse caps.
+		discountEmail := sessionEmail
+		if discountEmail == "" {
+			discountEmail = strings.ToLower(req.Email)
+		}
+		res, err := discount.Validate(ctx, s.pool, *req.DiscountCode, subtotal, discountEmail)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Discount check failed")
 			return
@@ -229,6 +362,13 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Quote failed")
+		return
+	}
+	// Mirrors the TypeScript "total must be greater than zero" guard; with
+	// quantity bounds in PriceLines this shouldn't fire, but negative totals
+	// must never reach settlement.
+	if q.Total <= 0 {
+		writeError(w, http.StatusBadRequest, "Order total must be greater than zero")
 		return
 	}
 
@@ -255,14 +395,14 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO "Order" (
-			id, email, name, address, city, region, country,
+			id, "userId", email, name, address, city, region, country,
 			subtotal, shipping, "taxAmount", "taxRate", "taxLabel",
 			"discountCode", "discountAmount", total, currency, "fxRate",
 			status, "paymentStatus", "paymentProvider", "paymentMethod",
 			"shippingMethodId", "updatedAt"
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-		          'pending','pending',$18,$19,$20, now())`,
-		orderID, req.Email, req.Name, req.Address, req.City, req.Region, req.Country,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+		          'pending','pending',$19,$20,$21, now())`,
+		orderID, userID, req.Email, req.Name, req.Address, req.City, req.Region, req.Country,
 		int64(q.Subtotal), int64(q.Shipping), int64(q.TaxAmount), q.TaxRate, q.TaxLabel,
 		codeOrNil(disc), int64(q.DiscountAmount), int64(q.Total), q.Currency, q.FXRate,
 		providerCode, method, q.ShippingMethodID)
@@ -287,7 +427,7 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 		_, _ = s.pool.Exec(ctx,
 			`INSERT INTO "DiscountRedemption" (id, "discountId", "orderId", email, amount)
 			 VALUES ($1,$2,$3,$4,$5)`,
-			newID(), disc.Discount.ID, orderID, strings.ToLower(req.Email), int64(disc.Amount))
+			newID(), disc.Discount.ID, orderID, redemptionEmail(sessionEmail, req.Email), int64(disc.Amount))
 		_, _ = s.pool.Exec(ctx, `UPDATE "Discount" SET "usedCount" = "usedCount" + 1 WHERE id = $1`, disc.Discount.ID)
 	}
 
@@ -332,10 +472,30 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 		       status = CASE WHEN status='pending' THEN 'paid' ELSE status END
 		WHERE id=$1`, orderID)
 	s.reserveStock(ctx, orderID)
+	s.sendOrderConfirmation(ctx, orderID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"orderId":     orderID,
 		"redirectUrl": "/checkout/success?order=" + orderID,
 	})
+}
+
+// orderOwner resolves the signed-in customer once per checkout: the user id
+// for attribution and the email for per-email discount limits.
+func (s *Server) orderOwner(ctx context.Context, r *http.Request) (any, string) {
+	u := s.sessionUser(ctx, r)
+	if u == nil {
+		return nil, ""
+	}
+	return u.ID, u.Email
+}
+
+// redemptionEmail pins the redemption to the signed-in account email when
+// there is one, falling back to the order email for guests.
+func redemptionEmail(sessionEmail, orderEmail string) string {
+	if sessionEmail != "" {
+		return sessionEmail
+	}
+	return strings.ToLower(orderEmail)
 }
 
 func codeOrNil(d *discount.Result) any {
@@ -359,8 +519,34 @@ func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Invalid webhook")
 		return
 	}
+	if !s.claimEvent(r.Context(), body, event) {
+		writeJSON(w, http.StatusOK, map[string]any{"received": true, "duplicate": true})
+		return
+	}
 	s.applyEvent(r.Context(), provider, event)
 	writeJSON(w, http.StatusOK, map[string]any{"received": true})
+}
+
+// claimEvent records the provider event id so Stripe's retries don't apply the
+// same state change twice. Returns false when the id was already seen.
+func (s *Server) claimEvent(ctx context.Context, rawBody []byte, event gateway.Event) bool {
+	var payload struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rawBody, &payload); err != nil || payload.ID == "" {
+		return true // nothing to dedupe on
+	}
+	tag, err := s.pool.Exec(ctx,
+		`INSERT INTO "WebhookEvent" (id, type) VALUES ($1,$2)
+		 ON CONFLICT (id) DO NOTHING`,
+		payload.ID, event.Type)
+	if err != nil {
+		// If the dedupe table itself fails, process anyway — the state machine
+		// is idempotent for paid/refunded-by-reference.
+		s.log.Error("webhook dedupe", "err", err)
+		return true
+	}
+	return tag.RowsAffected() > 0
 }
 
 func (s *Server) handlePaypalWebhook(w http.ResponseWriter, r *http.Request) {
@@ -394,6 +580,7 @@ func (s *Server) applyEvent(ctx context.Context, provider gateway.Provider, even
 			return
 		}
 		s.reserveStock(ctx, event.OrderID)
+		s.sendOrderConfirmation(ctx, event.OrderID)
 		_, _ = s.pool.Exec(ctx, `
 			UPDATE "Order"
 			SET "paymentStatus"='paid',

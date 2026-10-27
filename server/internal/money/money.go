@@ -9,7 +9,7 @@ const (
 	ShippingFee           Amount = 1200
 )
 
-func (a Amount) Mul(n int) Amount { return Amount(int64(a) * int64(n)) }
+func (a Amount) Mul(n int) Amount    { return Amount(int64(a) * int64(n)) }
 func (a Amount) Add(b Amount) Amount { return a + b }
 func (a Amount) Sub(b Amount) Amount {
 	if b > a {

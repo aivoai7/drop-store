@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { forwardToGo } from "@/lib/go-api";
+import { clientIpFrom } from "@/lib/request";
 import { z } from "zod";
 import { priceLines, quote } from "@/lib/checkout-service";
 import { validateDiscount } from "@/lib/discounts";
@@ -25,10 +26,17 @@ const schema = z.object({
 export async function POST(request: Request) {
   // The Go service owns pricing when configured; TS stays as the fallback.
   const raw = await request.text();
-  const proxied = await forwardToGo("/v1/quote", { body: raw });
+  const proxied = await forwardToGo("/v1/quote", { body: raw, ip: clientIpFrom(request) });
   if (proxied) return NextResponse.json(proxied.body, { status: proxied.status });
 
-  const parsed = schema.safeParse(JSON.parse(raw || "null"));
+  // Malformed JSON must be a 400, not an unhandled 500.
+  let parsedJson: unknown = null;
+  try {
+    parsedJson = JSON.parse(raw || "null");
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+  const parsed = schema.safeParse(parsedJson);
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   const { priced, problems } = await priceLines(parsed.data.items);

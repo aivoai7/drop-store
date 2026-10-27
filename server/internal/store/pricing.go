@@ -40,21 +40,21 @@ type Settings struct {
 }
 
 type Quote struct {
-	Lines             []PricedLine
-	Subtotal          money.Amount
-	Shipping          money.Amount
-	ShippingMethodID  string
+	Lines              []PricedLine
+	Subtotal           money.Amount
+	Shipping           money.Amount
+	ShippingMethodID   string
 	ShippingMethodName string
-	TaxAmount         money.Amount
-	TaxRate           int
-	TaxLabel          *string
-	DiscountAmount    money.Amount
-	Total             money.Amount
-	Currency          string
-	FXRate            float64
-	CurrencyName      string
-	CurrencySymbol    string
-	CurrencyDecimals  int
+	TaxAmount          money.Amount
+	TaxRate            int
+	TaxLabel           *string
+	DiscountAmount     money.Amount
+	Total              money.Amount
+	Currency           string
+	FXRate             float64
+	CurrencyName       string
+	CurrencySymbol     string
+	CurrencyDecimals   int
 }
 
 // PriceLines re-prices a cart from the database. Nothing the client sends about
@@ -64,6 +64,14 @@ func PriceLines(ctx context.Context, pool *db.Pool, lines []CartLine) ([]PricedL
 	var problems []string
 
 	for _, line := range lines {
+		// Same bounds the TypeScript side enforces with zod; without them a
+		// negative or absurd quantity slips past the stock check and can wrap
+		// the total negative.
+		if line.Quantity < 1 || line.Quantity > 20 {
+			problems = append(problems, "Invalid quantity.")
+			continue
+		}
+
 		var (
 			productID, name, status, imagesJSON string
 			productPrice                        int64

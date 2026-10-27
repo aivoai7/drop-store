@@ -17,7 +17,7 @@ export type ProxyResult = {
 /** Forwards a request body to the Go service and returns its response verbatim. */
 export async function forwardToGo(
   path: string,
-  init: { method?: string; body?: string; headers?: Record<string, string>; cookie?: string },
+  init: { method?: string; body?: string; headers?: Record<string, string>; cookie?: string; ip?: string },
 ): Promise<ProxyResult | null> {
   if (!GO_API_URL) return null;
 
@@ -26,6 +26,9 @@ export async function forwardToGo(
       method: init.method ?? "POST",
       headers: {
         "Content-Type": "application/json",
+        // The Go service rate-limits per IP; without this every proxied request
+        // would share the Next server's own bucket.
+        ...(init.ip ? { "X-Forwarded-For": init.ip } : {}),
         ...(init.cookie ? { Cookie: init.cookie } : {}),
         ...(init.headers ?? {}),
       },

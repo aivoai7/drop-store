@@ -1,14 +1,27 @@
 package api
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aivoai7/drop-store/server/internal/gateway"
 )
+
+func stripeHeader(body, secret string) string {
+	ts := time.Now().Unix()
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(fmt.Sprintf("%d.", ts)))
+	mac.Write([]byte(body))
+	return fmt.Sprintf("t=%d,v1=%s", ts, hex.EncodeToString(mac.Sum(nil)))
+}
 
 func TestApplyEventPaidIsIdempotent(t *testing.T) {
 	// The real pool is required, so this only checks the mapping layer.
@@ -17,7 +30,7 @@ func TestApplyEventPaidIsIdempotent(t *testing.T) {
 	p := &gateway.StripeProvider{SecretKey: "sk_test", WebhookSecret: "whsec_test"}
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/webhooks/stripe", strings.NewReader(raw))
-	req.Header.Set("Stripe-Signature", "t=1,v1=deadbeef")
+	req.Header.Set("Stripe-Signature", stripeHeader(raw, "whsec_test"))
 
 	mapped, ok, err := p.ParseWebhook(req, []byte(raw))
 	if err != nil || !ok {

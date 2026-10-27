@@ -8,7 +8,7 @@ import { validateDiscount, recordRedemption } from "@/lib/discounts";
 import { gatewayFor } from "@/lib/gateways";
 import { absolute } from "@/lib/site";
 import { rateLimit, formatRetry } from "@/lib/rate-limit";
-import { clientIp } from "@/lib/request";
+import { clientIp, clientIpFrom } from "@/lib/request";
 import { sendOrderConfirmation } from "@/lib/orders";
 import { recordPaymentEvent } from "@/lib/payments";
 import { reserveOrderStock } from "@/lib/stock";
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
   const proxied = await forwardToGo("/v1/checkout", {
     body: raw,
     cookie: request.headers.get("cookie") ?? undefined,
+    ip: clientIpFrom(request),
   });
   if (proxied) return NextResponse.json(proxied.body, { status: proxied.status });
 
@@ -68,11 +69,15 @@ export async function POST(request: Request) {
 
   const goodsSubtotal = priced.reduce((n, l) => n + l.price * l.quantity, 0);
 
+  // Per-email discount limits use the account email when signed in — the
+  // order email is client-typed and rotating it would dodge reuse caps.
+  const discountEmail = (user?.email ?? customer.email).toLowerCase();
+
   let discount: { id: string; code: string; amount: number } | null = null;
   if (discountCode) {
     const result = await validateDiscount(discountCode, {
       subtotal: goodsSubtotal,
-      email: customer.email.toLowerCase(),
+      email: discountEmail,
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 422 });
     discount = { id: result.discount.id, code: result.discount.code, amount: result.amount };
@@ -146,7 +151,7 @@ export async function POST(request: Request) {
     await recordRedemption({
       discountId: discount.id,
       orderId: order.id,
-      email: customer.email,
+      email: discountEmail,
       amount: discount.amount,
     });
   }

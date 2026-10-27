@@ -9,12 +9,15 @@ import (
 )
 
 type quoteView struct {
-	Currency       currencyView          `json:"currency"`
-	ShippingOptions []shippingOptionView `json:"shippingOptions"`
-	ShippingMethodID string              `json:"shippingMethodId"`
-	Tax            taxView               `json:"tax"`
-	Discount       *discountView         `json:"discount"`
-	Amounts        amountsView           `json:"amounts"`
+	Lines            []lineView           `json:"lines"`
+	Currency         currencyView         `json:"currency"`
+	Currencies       []currencyOptionView `json:"currencies"`
+	PaymentMethods   []paymentMethodView  `json:"paymentMethods"`
+	ShippingOptions  []shippingOptionView `json:"shippingOptions"`
+	ShippingMethodID string               `json:"shippingMethodId"`
+	Tax              taxView              `json:"tax"`
+	Discount         *discountView        `json:"discount"`
+	Amounts          amountsView          `json:"amounts"`
 }
 
 type currencyView struct {
@@ -35,6 +38,27 @@ type discountView struct {
 	Display string `json:"display"`
 }
 
+type lineView struct {
+	VariantID string `json:"variantId"`
+	Unit      string `json:"unit"`
+}
+
+type currencyOptionView struct {
+	Code     string  `json:"code"`
+	Name     string  `json:"name"`
+	Symbol   string  `json:"symbol"`
+	Rate     float64 `json:"rate"`
+	Decimals int     `json:"decimals"`
+}
+
+type paymentMethodView struct {
+	Code         string  `json:"code"`
+	Name         string  `json:"name"`
+	Description  *string `json:"description"`
+	Instructions *string `json:"instructions"`
+	Automated    bool    `json:"automated"`
+}
+
 type amountsView struct {
 	Subtotal string `json:"subtotal"`
 	Shipping string `json:"shipping"`
@@ -46,7 +70,7 @@ func fmtAmount(a money.Amount, q store.Quote) string {
 	return money.FormatConverted(a, q.FXRate, q.CurrencySymbol, q.CurrencyDecimals)
 }
 
-func renderQuote(q store.Quote, opts []shippingOptionView) quoteView {
+func renderQuote(q store.Quote, discountCode string, opts []shippingOptionView) quoteView {
 	label := ""
 	if q.TaxLabel != nil {
 		label = *q.TaxLabel
@@ -73,8 +97,7 @@ func renderQuote(q store.Quote, opts []shippingOptionView) quoteView {
 		},
 	}
 	if q.DiscountAmount > 0 {
-		code := ""
-		v.Discount = &discountView{Code: code, Display: fmtAmount(q.DiscountAmount, q)}
+		v.Discount = &discountView{Code: discountCode, Display: fmtAmount(q.DiscountAmount, q)}
 	}
 	return v
 }

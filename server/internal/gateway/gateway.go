@@ -57,11 +57,11 @@ type RefundResult struct {
 
 // Event is the normalised webhook payload both providers map onto.
 type Event struct {
-	Type       string // paid | failed | refunded | ignored
-	OrderID    string
-	Reference  string
+	Type        string // paid | failed | refunded | ignored
+	OrderID     string
+	Reference   string
 	AmountMinor int64
-	Reason     string
+	Reason      string
 }
 
 // Provider is the contract each gateway implements.

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type StripeProvider struct {
@@ -137,14 +138,10 @@ func (s *StripeProvider) Refund(ctx context.Context, in RefundInput) (RefundResu
 // verification is delegated to the TypeScript side when the secret is absent,
 // so a missing secret fails closed rather than accepting forged events.
 func (s *StripeProvider) ParseWebhook(r *http.Request, rawBody []byte) (Event, bool, error) {
-	if s.WebhookSecret == "" {
-		return Event{}, false, fmt.Errorf("STRIPE_WEBHOOK_SECRET not configured")
+	// Verify before parsing: an unsigned payload must never reach the mapper.
+	if err := VerifyStripeSignature(r.Header.Get("Stripe-Signature"), rawBody, s.WebhookSecret, time.Now()); err != nil {
+		return Event{}, false, err
 	}
-	if r.Header.Get("Stripe-Signature") == "" {
-		return Event{}, false, fmt.Errorf("missing signature")
-	}
-	// Signature verification happens in verifyStripeSignature; callers pass
-	// verified requests in. This method only maps the payload.
 	var payload struct {
 		ID   string `json:"id"`
 		Type string `json:"type"`

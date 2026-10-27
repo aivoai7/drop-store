@@ -12,14 +12,14 @@ import (
 )
 
 type PaypalProvider struct {
-	ClientID    string
-	Secret      string
-	WebhookID   string
-	BaseURL     string
-	HTTP        *http.Client
+	ClientID  string
+	Secret    string
+	WebhookID string
+	BaseURL   string
+	HTTP      *http.Client
 }
 
-func (p *PaypalProvider) Code() Code { return Paypal }
+func (p *PaypalProvider) Code() Code                  { return Paypal }
 func (p *PaypalProvider) Supports(method string) bool { return method == "paypal" }
 func (p *PaypalProvider) Configured() bool {
 	return p.ClientID != "" && p.Secret != ""

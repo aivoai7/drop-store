@@ -13,30 +13,31 @@ type Config struct {
 	SiteURL     string
 	AppSecret   string
 
-	StripeSecret      string
-	StripeWebhook     string
-	StripeAPIBase     string
-	PaypalClientID    string
-	PaypalSecret      string
-	PaypalWebhookID   string
-	PaypalAPIBase     string
+	StripeSecret    string
+	StripeWebhook   string
+	StripeAPIBase   string
+	PaypalClientID  string
+	PaypalSecret    string
+	PaypalWebhookID string
+	PaypalAPIBase   string
 
-	ResendAPIKey string
-	EmailFrom    string
+	ResendAPIKey  string
+	ResendBaseURL string
+	EmailFrom     string
 
-	TaxProvider     string
-	TaxJarToken     string
-	TaxJarAPIBase   string
+	TaxProvider   string
+	TaxJarToken   string
+	TaxJarAPIBase string
 
 	SessionCookie string
 }
 
 func Load() Config {
 	return Config{
-		DatabaseURL:  env("DATABASE_URL", ""),
-		Port:         env("GO_API_PORT", "8081"),
-		SiteURL:      strings.TrimRight(env("SITE_URL", "http://localhost:3002"), "/"),
-		AppSecret:    env("APP_SECRET", ""),
+		DatabaseURL: env("DATABASE_URL", ""),
+		Port:        env("GO_API_PORT", "8081"),
+		SiteURL:     strings.TrimRight(env("SITE_URL", "http://localhost:3002"), "/"),
+		AppSecret:   env("APP_SECRET", ""),
 
 		StripeSecret:    env("STRIPE_SECRET_KEY", ""),
 		StripeWebhook:   env("STRIPE_WEBHOOK_SECRET", ""),
@@ -46,8 +47,9 @@ func Load() Config {
 		PaypalWebhookID: env("PAYPAL_WEBHOOK_ID", ""),
 		PaypalAPIBase:   env("PAYPAL_API_BASE", "https://api-m.sandbox.paypal.com"),
 
-		ResendAPIKey: env("RESEND_API_KEY", ""),
-		EmailFrom:    env("EMAIL_FROM", "DROP <onboarding@resend.dev>"),
+		ResendAPIKey:  env("RESEND_API_KEY", ""),
+		ResendBaseURL: env("RESEND_BASE_URL", ""),
+		EmailFrom:     env("EMAIL_FROM", "DROP <onboarding@resend.dev>"),
 
 		TaxProvider:   env("TAX_PROVIDER", ""),
 		TaxJarToken:   env("TAXJAR_API_TOKEN", ""),
@@ -59,6 +61,9 @@ func Load() Config {
 
 // StripeEnabled reports whether card payments can actually settle.
 func (c Config) StripeEnabled() bool { return c.StripeSecret != "" }
+
+// StripeBaseURL lets tests point the SDK at a local stub.
+func (c Config) StripeBaseURL() string { return c.StripeAPIBase }
 
 func (c Config) PaypalEnabled() bool {
 	return c.PaypalClientID != "" && c.PaypalSecret != ""
