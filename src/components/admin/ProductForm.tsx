@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { at } from "@/lib/admin-copy/zh";
+import { adminPath } from "@/lib/admin-path";
 
 export type ProductFormValues = {
   id?: string;
@@ -201,7 +202,7 @@ export function ProductForm({
         <button className="bg-lime-400 px-6 py-2.5 text-xs font-black uppercase tracking-widest text-black">
           {submitLabel}
         </button>
-        <Link href="/admin/products" className="text-xs uppercase tracking-widest text-neutral-400 hover:text-white">
+        <Link href={adminPath("/products")} className="text-xs uppercase tracking-widest text-neutral-400 hover:text-white">
           {at("c.cancel")}
         </Link>
       </div>

@@ -9,10 +9,11 @@ import { recordAudit } from "./audit";
 import { clientIp } from "./request";
 import { canEdit } from "./permissions";
 import { syncVariants, defaultSku } from "./variants";
+import { ADMIN_BASE, adminPath } from "@/lib/admin-path";
 
 async function requireEditor() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect(adminPath("/login"));
   if (!canEdit(admin.role)) redirect("/admin?denied=1");
   return admin;
 }
@@ -81,7 +82,7 @@ export async function createProduct(formData: FormData) {
   const { fields, colors, sizes, images, stock } = readForm(formData);
 
   const parsed = productSchema.safeParse(fields);
-  if (!parsed.success) redirect(`/admin/products/new?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  if (!parsed.success) redirect(`${ADMIN_BASE}/products/new?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   if (colors.length === 0 || sizes.length === 0) redirect("/admin/products/new?error=Add at least one color and size");
   if (images.length === 0) redirect("/admin/products/new?error=Add at least one image URL");
 
@@ -126,8 +127,8 @@ export async function createProduct(formData: FormData) {
     metadata: { name: product.name },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/products");
-  redirect(`/admin/products/${product.id}`);
+  revalidatePath(adminPath("/products"));
+  redirect(`${ADMIN_BASE}/products/${product.id}`);
 }
 
 export async function updateProduct(formData: FormData) {
@@ -136,10 +137,10 @@ export async function updateProduct(formData: FormData) {
   const { fields, colors, sizes, images, stock } = readForm(formData);
 
   const existing = await prisma.product.findUnique({ where: { id } });
-  if (!existing) redirect("/admin/products");
+  if (!existing) redirect(adminPath("/products"));
 
   const parsed = productSchema.safeParse(fields);
-  const backTo = `/admin/products/${id}`;
+  const backTo = `${ADMIN_BASE}/products/${id}`;
   if (!parsed.success) redirect(`${backTo}?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   if (colors.length === 0 || sizes.length === 0) redirect(`${backTo}?error=Add at least one color and size`);
   if (images.length === 0) redirect(`${backTo}?error=Add at least one image URL`);
@@ -176,7 +177,7 @@ export async function updateProduct(formData: FormData) {
     metadata: { price: { from: existing.price, to: parsed.data.price } },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/products");
+  revalidatePath(adminPath("/products"));
   redirect(`${backTo}?saved=1`);
 }
 
@@ -184,7 +185,7 @@ export async function deleteProduct(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
   const product = await prisma.product.findUnique({ where: { id } });
-  if (!product) redirect("/admin/products");
+  if (!product) redirect(adminPath("/products"));
 
   const ordered = await prisma.orderItem.count({ where: { productId: id } });
   if (ordered > 0) {
@@ -197,7 +198,7 @@ export async function deleteProduct(formData: FormData) {
       metadata: { reason: "has order history" },
       ip: await clientIp(),
     });
-    redirect("/admin/products?archived=1");
+    redirect(adminPath("/products?archived=1"));
   }
 
   await prisma.product.delete({ where: { id } });
@@ -207,15 +208,15 @@ export async function deleteProduct(formData: FormData) {
     target: product.slug,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/products");
-  redirect("/admin/products?deleted=1");
+  revalidatePath(adminPath("/products"));
+  redirect(adminPath("/products?deleted=1"));
 }
 
 export async function bulkProductAction(formData: FormData) {
   const admin = await requireEditor();
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   const action = String(formData.get("bulkAction"));
-  if (ids.length === 0) redirect("/admin/products");
+  if (ids.length === 0) redirect(adminPath("/products"));
 
   if (action === "activate" || action === "archive") {
     await prisma.product.updateMany({
@@ -255,15 +256,15 @@ export async function bulkProductAction(formData: FormData) {
     metadata: { action, ids },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/products");
-  redirect("/admin/products?bulk=1");
+  revalidatePath(adminPath("/products"));
+  redirect(adminPath("/products?bulk=1"));
 }
 
 export async function toggleProductFeatured(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
   const before = await prisma.product.findUnique({ where: { id } });
-  if (!before) redirect("/admin/products");
+  if (!before) redirect(adminPath("/products"));
 
   await prisma.product.update({ where: { id }, data: { featured: !before.featured } });
   await recordAudit({
@@ -273,7 +274,7 @@ export async function toggleProductFeatured(formData: FormData) {
     metadata: { from: before.featured, to: !before.featured },
     ip: await clientIp(),
   });
-  redirect("/admin/products");
+  redirect(adminPath("/products"));
 }
 
 export async function updateVariantStock(formData: FormData) {
@@ -281,10 +282,10 @@ export async function updateVariantStock(formData: FormData) {
   const variantId = String(formData.get("variantId"));
   const stock = Number(formData.get("stock"));
   const productId = String(formData.get("productId"));
-  if (!Number.isInteger(stock) || stock < 0) redirect(`/admin/products/${productId}`);
+  if (!Number.isInteger(stock) || stock < 0) redirect(`${ADMIN_BASE}/products/${productId}`);
 
   const before = await prisma.variant.findUnique({ where: { id: variantId } });
-  if (!before) redirect(`/admin/products/${productId}`);
+  if (!before) redirect(`${ADMIN_BASE}/products/${productId}`);
 
   await prisma.variant.update({ where: { id: variantId }, data: { stock } });
   const { refreshProductStock } = await import("./variants");
@@ -297,5 +298,5 @@ export async function updateVariantStock(formData: FormData) {
     metadata: { from: before.stock, to: stock },
     ip: await clientIp(),
   });
-  redirect(`/admin/products/${productId}?saved=1`);
+  redirect(`${ADMIN_BASE}/products/${productId}?saved=1`);
 }

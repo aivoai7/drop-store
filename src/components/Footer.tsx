@@ -14,7 +14,6 @@ export function Footer({ locale }: { locale: Locale }) {
         <div className="flex flex-col gap-2 text-sm">
           <Link href={`/${locale}/shop`} className="hover:text-lime-400">{t("footer.shopAll")}</Link>
           <Link href={`/${locale}/account`} className="hover:text-lime-400">{t("footer.myAccount")}</Link>
-          <Link href="/admin" className="hover:text-lime-400">{t("footer.admin")}</Link>
         </div>
         <div className="text-sm text-neutral-400">
           <p>{t("home.perks.shipping")}</p>

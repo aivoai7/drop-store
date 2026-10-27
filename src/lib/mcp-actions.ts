@@ -7,6 +7,7 @@ import { canManageAdmins } from "./permissions";
 import { recordAudit } from "./audit";
 import { clientIp } from "./request";
 import { issueMcpToken, revokeMcpToken } from "./mcp/token";
+import { adminPath } from "@/lib/admin-path";
 
 export type McpTokenState = { error?: string; token?: string; prefix?: string } | undefined;
 
@@ -15,7 +16,7 @@ export async function createMcpToken(
   formData: FormData,
 ): Promise<McpTokenState> {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect(adminPath("/login"));
   if (!canManageAdmins(admin.role)) return { error: "Only owners can create MCP tokens" };
 
   const name = String(formData.get("name") ?? "").trim();
@@ -29,15 +30,15 @@ export async function createMcpToken(
     metadata: { name },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/mcp");
+  revalidatePath(adminPath("/mcp"));
   // Returned once to the caller; the database only holds a hash.
   return { token, prefix: row.prefix };
 }
 
 export async function revokeToken(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canManageAdmins(admin.role)) redirect("/admin/mcp?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canManageAdmins(admin.role)) redirect(adminPath("/mcp?denied=1"));
 
   const id = String(formData.get("id"));
   await revokeMcpToken(id);
@@ -47,6 +48,6 @@ export async function revokeToken(formData: FormData) {
     target: id,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/mcp");
-  redirect("/admin/mcp?saved=1");
+  revalidatePath(adminPath("/mcp"));
+  redirect(adminPath("/mcp?saved=1"));
 }

@@ -10,8 +10,8 @@ import { refreshExchangeRates } from "./exchange-rates";
 
 export async function refreshRatesAction() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canEdit(admin.role)) redirect("/admin/integrations?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canEdit(admin.role)) redirect(adminPath("/integrations?denied=1"));
 
   const result = await refreshExchangeRates();
 
@@ -23,30 +23,31 @@ export async function refreshRatesAction() {
     ip: await clientIp(),
   });
 
-  revalidatePath("/admin/integrations");
-  revalidatePath("/admin/currencies");
+  revalidatePath(adminPath("/integrations"));
+  revalidatePath(adminPath("/currencies"));
 
   const query = result.ok
     ? `updated=${result.updated.length}`
     : `error=${encodeURIComponent(result.error ?? "Refresh failed")}`;
-  redirect(`/admin/integrations?${query}`);
+  redirect(`${ADMIN_BASE}/integrations?${query}`);
 }
 
 /* ---------------- payment gateways ---------------- */
 
 import { saveGatewaySecrets, deleteGatewaySecrets } from "./gateway-config";
+import { ADMIN_BASE, adminPath } from "@/lib/admin-path";
 
 export type GatewayFormState = { error?: string } | undefined;
 
 function redirectWith(search: string) {
-  revalidatePath("/admin/integrations");
-  redirect(`/admin/integrations?${search}`);
+  revalidatePath(adminPath("/integrations"));
+  redirect(`${ADMIN_BASE}/integrations?${search}`);
 }
 
 export async function saveGatewayKeys(_prev: GatewayFormState, formData: FormData): Promise<GatewayFormState> {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canEdit(admin.role)) redirect("/admin/integrations?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canEdit(admin.role)) redirect(adminPath("/integrations?denied=1"));
 
   const gateway = String(formData.get("gateway") ?? "");
   if (gateway !== "stripe" && gateway !== "paypal") return { error: "未知网关" };
@@ -81,8 +82,8 @@ export async function saveGatewayKeys(_prev: GatewayFormState, formData: FormDat
 
 export async function removeGatewayKeys(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canEdit(admin.role)) redirect("/admin/integrations?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canEdit(admin.role)) redirect(adminPath("/integrations?denied=1"));
 
   const gateway = String(formData.get("gateway") ?? "");
   if (gateway !== "stripe" && gateway !== "paypal") return;

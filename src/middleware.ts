@@ -1,12 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, isLocale, LOCALE_COOKIE, matchLocale, locales } from "@/i18n/config";
+import { ADMIN_BASE } from "@/lib/admin-path";
 
 const LICENSE_COOKIE = "DROP_LICENSE_OK";
 
 /**
- * Two jobs, in order:
- *   1. Lock the whole site when there is no valid licence.
- *   2. Put every storefront URL under its locale prefix.
+ * Three jobs, in order:
+ *   1. Sinkhole the old /admin path so probing finds nothing.
+ *   2. Lock the whole site when there is no valid licence.
+ *   3. Put every storefront URL under its locale prefix.
  *
  * The licence check reads a short-lived cookie set by /api/license/status, so
  * the middleware never blocks on the licence server itself.
@@ -17,6 +19,12 @@ export function middleware(request: NextRequest) {
   const isStatic =
     pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/static");
   if (isStatic) return NextResponse.next();
+
+  // The admin area moved to ADMIN_BASE (unlisted). Anything hitting the old
+  // /admin path gets an empty 404 — no redirect, no hint that it ever existed.
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   const licenceExempt =
     pathname === "/license" ||
@@ -41,7 +49,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (
-    pathname.startsWith("/admin") ||
+    pathname.startsWith(ADMIN_BASE) ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/license")
   ) {

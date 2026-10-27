@@ -15,6 +15,7 @@ import { rateLimit, formatRetry } from "./rate-limit";
 import { clientIp, userAgent } from "./request";
 import { recordAudit } from "./audit";
 import { canEdit, canManageAdmins, isRole } from "./permissions";
+import { ADMIN_BASE, adminPath } from "@/lib/admin-path";
 
 export type AdminAuthState = { error?: string } | undefined;
 
@@ -62,7 +63,7 @@ export async function adminSignIn(
     metadata: { role: admin.role },
     ip,
   });
-  redirect("/admin");
+  redirect(ADMIN_BASE);
 }
 
 export async function adminSignOut() {
@@ -70,7 +71,7 @@ export async function adminSignOut() {
   const ip = await clientIp();
   if (admin) await recordAudit({ actor: admin, action: "admin.logout", ip });
   await destroyAdminSession();
-  redirect("/admin/login");
+  redirect(adminPath("/login"));
 }
 
 /** The very first admin is created here so nobody ships a shared default password. */
@@ -109,7 +110,7 @@ export async function createFirstAdmin(
     metadata: { firstAdmin: true, role: "owner" },
     ip,
   });
-  redirect("/admin");
+  redirect(ADMIN_BASE);
 }
 
 export async function changeAdminPassword(
@@ -117,7 +118,7 @@ export async function changeAdminPassword(
   formData: FormData,
 ): Promise<AdminAuthState> {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect(adminPath("/login"));
 
   const current = String(formData.get("current") ?? "");
   const next = String(formData.get("password") ?? "");
@@ -139,7 +140,7 @@ export async function changeAdminPassword(
   await destroyAllAdminSessions(admin.id);
   await createAdminSession({ adminId: admin.id, ip, userAgent: await userAgent() });
   await recordAudit({ actor: admin, action: "admin.password.changed", ip });
-  redirect("/admin/account?updated=1");
+  redirect(adminPath("/account?updated=1"));
 }
 
 export async function addAdminTeamMember(
@@ -147,7 +148,7 @@ export async function addAdminTeamMember(
   formData: FormData,
 ): Promise<AdminAuthState> {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect(adminPath("/login"));
   if (!canManageAdmins(admin.role)) return { error: "Only owners can add team members" };
 
   const name = String(formData.get("name") ?? "").trim();
@@ -181,26 +182,26 @@ export async function addAdminTeamMember(
     metadata: { name: created.name, role },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/account");
-  redirect("/admin/account?added=1");
+  revalidatePath(adminPath("/account"));
+  redirect(adminPath("/account?added=1"));
 }
 
 export async function updateTeamMemberRole(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canManageAdmins(admin.role)) redirect("/admin/account?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canManageAdmins(admin.role)) redirect(adminPath("/account?denied=1"));
 
   const id = String(formData.get("id"));
   const role = String(formData.get("role"));
-  if (!isRole(role)) redirect("/admin/account");
+  if (!isRole(role)) redirect(adminPath("/account"));
 
   const target = await prisma.adminUser.findUnique({ where: { id } });
-  if (!target) redirect("/admin/account");
+  if (!target) redirect(adminPath("/account"));
 
   // Don't allow demoting the last owner — that would lock everyone out.
   if (target.role === "owner" && role !== "owner") {
     const owners = await prisma.adminUser.count({ where: { role: "owner", disabled: false } });
-    if (owners <= 1) redirect("/admin/account?error=last-owner");
+    if (owners <= 1) redirect(adminPath("/account?error=last-owner"));
   }
 
   await prisma.adminUser.update({ where: { id }, data: { role } });
@@ -211,24 +212,24 @@ export async function updateTeamMemberRole(formData: FormData) {
     metadata: { from: target.role, to: role },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/account");
-  redirect("/admin/account?saved=1");
+  revalidatePath(adminPath("/account"));
+  redirect(adminPath("/account?saved=1"));
 }
 
 export async function toggleTeamMemberDisabled(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canManageAdmins(admin.role)) redirect("/admin/account?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canManageAdmins(admin.role)) redirect(adminPath("/account?denied=1"));
 
   const id = String(formData.get("id"));
-  if (id === admin.id) redirect("/admin/account?error=self");
+  if (id === admin.id) redirect(adminPath("/account?error=self"));
 
   const target = await prisma.adminUser.findUnique({ where: { id } });
-  if (!target) redirect("/admin/account");
+  if (!target) redirect(adminPath("/account"));
 
   if (!target.disabled && target.role === "owner") {
     const owners = await prisma.adminUser.count({ where: { role: "owner", disabled: false } });
-    if (owners <= 1) redirect("/admin/account?error=last-owner");
+    if (owners <= 1) redirect(adminPath("/account?error=last-owner"));
   }
 
   await prisma.adminUser.update({ where: { id }, data: { disabled: !target.disabled } });
@@ -241,24 +242,24 @@ export async function toggleTeamMemberDisabled(formData: FormData) {
     target: target.email,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/account");
-  redirect("/admin/account?saved=1");
+  revalidatePath(adminPath("/account"));
+  redirect(adminPath("/account?saved=1"));
 }
 
 export async function removeTeamMember(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canManageAdmins(admin.role)) redirect("/admin/account?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canManageAdmins(admin.role)) redirect(adminPath("/account?denied=1"));
 
   const id = String(formData.get("id"));
-  if (id === admin.id) redirect("/admin/account?error=self");
+  if (id === admin.id) redirect(adminPath("/account?error=self"));
 
   const target = await prisma.adminUser.findUnique({ where: { id } });
-  if (!target) redirect("/admin/account");
+  if (!target) redirect(adminPath("/account"));
 
   if (target.role === "owner") {
     const owners = await prisma.adminUser.count({ where: { role: "owner", disabled: false } });
-    if (owners <= 1) redirect("/admin/account?error=last-owner");
+    if (owners <= 1) redirect(adminPath("/account?error=last-owner"));
   }
 
   await prisma.adminUser.delete({ where: { id } });
@@ -268,17 +269,17 @@ export async function removeTeamMember(formData: FormData) {
     target: target.email,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/account");
-  redirect("/admin/account?saved=1");
+  revalidatePath(adminPath("/account"));
+  redirect(adminPath("/account?saved=1"));
 }
 
 export async function resetCustomerPassword(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin || !canEdit(admin.role)) redirect("/admin/login");
+  if (!admin || !canEdit(admin.role)) redirect(adminPath("/login"));
 
   const userId = String(formData.get("userId"));
   const password = String(formData.get("password") ?? "");
-  const backTo = String(formData.get("backTo") ?? "/admin/customers");
+  const backTo = String(formData.get("backTo") ?? adminPath("/customers"));
   if (password.length < 8) redirect(`${backTo}?error=Password must be at least 8 characters`);
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -298,10 +299,10 @@ export async function resetCustomerPassword(formData: FormData) {
 
 export async function toggleCustomerDisabled(formData: FormData) {
   const admin = await getAdminUser();
-  if (!admin || !canEdit(admin.role)) redirect("/admin/login");
+  if (!admin || !canEdit(admin.role)) redirect(adminPath("/login"));
 
   const userId = String(formData.get("userId"));
-  const backTo = String(formData.get("backTo") ?? "/admin/customers");
+  const backTo = String(formData.get("backTo") ?? adminPath("/customers"));
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) redirect(backTo);
 

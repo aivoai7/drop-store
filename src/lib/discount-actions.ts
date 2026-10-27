@@ -8,11 +8,12 @@ import { getAdminUser } from "./auth";
 import { recordAudit } from "./audit";
 import { clientIp } from "./request";
 import { canEdit } from "./permissions";
+import { ADMIN_BASE, adminPath } from "@/lib/admin-path";
 
 async function requireEditor() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canEdit(admin.role)) redirect("/admin/discounts?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canEdit(admin.role)) redirect(adminPath("/discounts?denied=1"));
   return admin;
 }
 
@@ -63,8 +64,8 @@ export async function createDiscount(formData: FormData) {
   });
 
   if (!parsed.success) {
-    revalidatePath("/admin/discounts");
-  redirect(`/admin/discounts?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    revalidatePath(adminPath("/discounts"));
+  redirect(`${ADMIN_BASE}/discounts?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
   if (parsed.data.type === "percentage" && parsed.data.value > 100) {
     redirect("/admin/discounts?error=A percentage discount can't exceed 100");
@@ -84,15 +85,15 @@ export async function createDiscount(formData: FormData) {
     metadata: { type: discount.type, value: discount.value },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/discounts");
-  redirect("/admin/discounts?saved=1");
+  revalidatePath(adminPath("/discounts"));
+  redirect(adminPath("/discounts?saved=1"));
 }
 
 export async function toggleDiscount(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
   const discount = await prisma.discount.findUnique({ where: { id } });
-  if (!discount) redirect("/admin/discounts");
+  if (!discount) redirect(adminPath("/discounts"));
 
   await prisma.discount.update({ where: { id }, data: { active: !discount.active } });
   await recordAudit({
@@ -101,15 +102,15 @@ export async function toggleDiscount(formData: FormData) {
     target: discount.code,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/discounts");
-  redirect("/admin/discounts?saved=1");
+  revalidatePath(adminPath("/discounts"));
+  redirect(adminPath("/discounts?saved=1"));
 }
 
 export async function deleteDiscount(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
   const discount = await prisma.discount.findUnique({ where: { id } });
-  if (!discount) redirect("/admin/discounts");
+  if (!discount) redirect(adminPath("/discounts"));
 
   if (discount.usedCount > 0) {
     // Keep the redemption history intact.
@@ -121,8 +122,8 @@ export async function deleteDiscount(formData: FormData) {
       metadata: { reason: "has redemptions" },
       ip: await clientIp(),
     });
-    revalidatePath("/admin/discounts");
-  redirect("/admin/discounts?saved=1");
+    revalidatePath(adminPath("/discounts"));
+  redirect(adminPath("/discounts?saved=1"));
   }
 
   await prisma.discount.delete({ where: { id } });
@@ -132,6 +133,6 @@ export async function deleteDiscount(formData: FormData) {
     target: discount.code,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/discounts");
-  redirect("/admin/discounts?saved=1");
+  revalidatePath(adminPath("/discounts"));
+  redirect(adminPath("/discounts?saved=1"));
 }

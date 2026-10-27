@@ -11,10 +11,11 @@ import { refundOrder, markOrderPaidManually, syncFromStripe } from "./payments";
 import { canEdit } from "./permissions";
 import { sendEmail } from "./email";
 import { shippingEmail } from "./email-templates";
+import { ADMIN_BASE, adminPath } from "@/lib/admin-path";
 
 async function requireEditor() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect(adminPath("/login"));
   if (!canEdit(admin.role)) redirect("/admin?denied=1");
   return admin;
 }
@@ -23,7 +24,7 @@ export async function updateOrderStatus(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
-  const backTo = String(formData.get("backTo") ?? "/admin/orders");
+  const backTo = String(formData.get("backTo") ?? adminPath("/orders"));
   if (!["pending", "paid", "shipped", "cancelled"].includes(status)) redirect(backTo);
 
   const before = await prisma.order.findUnique({ where: { id }, include: { items: true } });
@@ -46,8 +47,8 @@ export async function updateOrderStatus(formData: FormData) {
     metadata: { from: before.status, to: status },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${id}`);
+  revalidatePath(adminPath("/orders"));
+  revalidatePath(`${ADMIN_BASE}/orders/${id}`);
   redirect(backTo);
 }
 
@@ -56,7 +57,7 @@ export async function shipOrder(formData: FormData) {
   const id = String(formData.get("id"));
   const carrier = String(formData.get("carrier") ?? "").trim();
   const trackingNumber = String(formData.get("trackingNumber") ?? "").trim();
-  const backTo = String(formData.get("backTo") ?? "/admin/orders");
+  const backTo = String(formData.get("backTo") ?? adminPath("/orders"));
 
   const order = await prisma.order.findUnique({ where: { id }, include: { items: true } });
   if (!order) redirect(backTo);
@@ -87,15 +88,15 @@ export async function shipOrder(formData: FormData) {
     metadata: { carrier, trackingNumber },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${id}`);
+  revalidatePath(adminPath("/orders"));
+  revalidatePath(`${ADMIN_BASE}/orders/${id}`);
   redirect(backTo);
 }
 
 export async function updateOrderDetails(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
-  const backTo = String(formData.get("backTo") ?? `/admin/orders/${id}`);
+  const backTo = String(formData.get("backTo") ?? `${ADMIN_BASE}/orders/${id}`);
 
   const data = {
     name: String(formData.get("name") ?? "").trim(),
@@ -109,7 +110,7 @@ export async function updateOrderDetails(formData: FormData) {
   }
 
   const before = await prisma.order.findUnique({ where: { id } });
-  if (!before) redirect("/admin/orders");
+  if (!before) redirect(adminPath("/orders"));
 
   await prisma.order.update({ where: { id }, data });
   await recordAudit({
@@ -121,15 +122,15 @@ export async function updateOrderDetails(formData: FormData) {
     },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${id}`);
+  revalidatePath(adminPath("/orders"));
+  revalidatePath(`${ADMIN_BASE}/orders/${id}`);
   redirect(backTo);
 }
 
 export async function refundOrderAction(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
-  const backTo = String(formData.get("backTo") ?? "/admin/orders");
+  const backTo = String(formData.get("backTo") ?? adminPath("/orders"));
   const ip = await clientIp();
 
   const rawAmount = String(formData.get("amount") ?? "").replace(/[^0-9.]/g, "");
@@ -161,9 +162,9 @@ export async function refundOrderAction(formData: FormData) {
     metadata: { amount: result.amount, provider: result.provider, reason },
     ip,
   });
-  revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${id}`);
-  revalidatePath("/admin/payments");
+  revalidatePath(adminPath("/orders"));
+  revalidatePath(`${ADMIN_BASE}/orders/${id}`);
+  revalidatePath(adminPath("/payments"));
   redirect(`${backTo}?refunded=1`);
 }
 
@@ -171,7 +172,7 @@ export async function markPaidAction(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
   const note = String(formData.get("note") ?? "").trim() || undefined;
-  const backTo = String(formData.get("backTo") ?? `/admin/orders/${id}`);
+  const backTo = String(formData.get("backTo") ?? `${ADMIN_BASE}/orders/${id}`);
   const ip = await clientIp();
 
   const result = await markOrderPaidManually({ orderId: id, actorEmail: admin.email, note });
@@ -184,15 +185,15 @@ export async function markPaidAction(formData: FormData) {
     metadata: { amount: result.amount, note },
     ip,
   });
-  revalidatePath(`/admin/orders/${id}`);
-  revalidatePath("/admin/payments");
+  revalidatePath(`${ADMIN_BASE}/orders/${id}`);
+  revalidatePath(adminPath("/payments"));
   redirect(`${backTo}?paid=1`);
 }
 
 export async function syncPaymentAction(formData: FormData) {
   const admin = await requireEditor();
   const id = String(formData.get("id"));
-  const backTo = String(formData.get("backTo") ?? `/admin/orders/${id}`);
+  const backTo = String(formData.get("backTo") ?? `${ADMIN_BASE}/orders/${id}`);
   const ip = await clientIp();
 
   const result = await syncFromStripe(id);
@@ -205,7 +206,7 @@ export async function syncPaymentAction(formData: FormData) {
     metadata: { amount: result.amount, alreadyPaid: result.alreadyPaid },
     ip,
   });
-  revalidatePath(`/admin/orders/${id}`);
-  revalidatePath("/admin/payments");
+  revalidatePath(`${ADMIN_BASE}/orders/${id}`);
+  revalidatePath(adminPath("/payments"));
   redirect(`${backTo}?paid=1`);
 }

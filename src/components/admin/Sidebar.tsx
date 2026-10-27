@@ -28,6 +28,7 @@ import {
 import { adminSignOut } from "@/lib/admin-actions";
 import { at } from "@/lib/admin-copy/zh";
 import { ROLE_LABELS_ZH } from "@/lib/admin-copy/roles";
+import { ADMIN_BASE, adminPath } from "@/lib/admin-path";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; badge?: number };
 
@@ -42,47 +43,47 @@ export function Sidebar({
   const [open, setOpen] = useState(false);
 
   const groups: Array<{ title: string; items: NavItem[] }> = [
-    { title: at("nav.overview"), items: [{ href: "/admin", label: at("nav.dashboard"), icon: LayoutDashboard }] },
+    { title: at("nav.overview"), items: [{ href: ADMIN_BASE, label: at("nav.dashboard"), icon: LayoutDashboard }] },
     {
       title: at("nav.commerce"),
       items: [
-        { href: "/admin/orders", label: at("nav.orders"), icon: ShoppingCart, badge: counts.orders },
-        { href: "/admin/products", label: at("nav.products"), icon: Package, badge: counts.lowStock },
-        { href: "/admin/categories", label: at("nav.categories"), icon: FolderTree },
-        { href: "/admin/customers", label: at("nav.customers"), icon: Users },
-        { href: "/admin/discounts", label: at("nav.discounts"), icon: TicketPercent },
-        { href: "/admin/payments", label: at("nav.payments"), icon: CreditCard },
+        { href: adminPath("/orders"), label: at("nav.orders"), icon: ShoppingCart, badge: counts.orders },
+        { href: adminPath("/products"), label: at("nav.products"), icon: Package, badge: counts.lowStock },
+        { href: adminPath("/categories"), label: at("nav.categories"), icon: FolderTree },
+        { href: adminPath("/customers"), label: at("nav.customers"), icon: Users },
+        { href: adminPath("/discounts"), label: at("nav.discounts"), icon: TicketPercent },
+        { href: adminPath("/payments"), label: at("nav.payments"), icon: CreditCard },
       ],
     },
     {
       title: at("nav.config"),
       items: [
-        { href: "/admin/settings", label: at("nav.settings"), icon: Settings },
-        { href: "/admin/tax", label: at("nav.tax"), icon: Percent },
-        { href: "/admin/shipping", label: at("nav.shipping"), icon: Truck },
-        { href: "/admin/currencies", label: at("nav.currencies"), icon: Coins },
-        { href: "/admin/payment-methods", label: at("nav.paymentMethods"), icon: Wallet },
-        { href: "/admin/integrations", label: at("nav.integrations"), icon: Cable },
+        { href: adminPath("/settings"), label: at("nav.settings"), icon: Settings },
+        { href: adminPath("/tax"), label: at("nav.tax"), icon: Percent },
+        { href: adminPath("/shipping"), label: at("nav.shipping"), icon: Truck },
+        { href: adminPath("/currencies"), label: at("nav.currencies"), icon: Coins },
+        { href: adminPath("/payment-methods"), label: at("nav.paymentMethods"), icon: Wallet },
+        { href: adminPath("/integrations"), label: at("nav.integrations"), icon: Cable },
       ],
     },
     {
       title: at("nav.system"),
       items: [
-        { href: "/admin/audit", label: at("nav.audit"), icon: ScrollText },
-        { href: "/admin/mcp", label: at("nav.mcp"), icon: Plug },
-        { href: "/admin/license", label: at("nav.license"), icon: KeyRound },
-        { href: "/admin/account", label: at("nav.account"), icon: Settings },
+        { href: adminPath("/audit"), label: at("nav.audit"), icon: ScrollText },
+        { href: adminPath("/mcp"), label: at("nav.mcp"), icon: Plug },
+        { href: adminPath("/license"), label: at("nav.license"), icon: KeyRound },
+        { href: adminPath("/account"), label: at("nav.account"), icon: Settings },
       ],
     },
   ];
 
   const isActive = (href: string) =>
-    href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+    href === ADMIN_BASE ? pathname === ADMIN_BASE : pathname.startsWith(href);
 
   const nav = (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
-        <Link href="/admin" className="text-lg font-black tracking-[0.25em]" onClick={() => setOpen(false)}>
+        <Link href={ADMIN_BASE} className="text-lg font-black tracking-[0.25em]" onClick={() => setOpen(false)}>
           DROP
         </Link>
         <span className="hidden text-[10px] font-bold uppercase tracking-widest text-neutral-500 lg:inline">

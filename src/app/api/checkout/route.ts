@@ -37,6 +37,10 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Defense in depth: the boot instrumentation already verifies the code
+  // signature; a second check here catches runtime-patched modules.
+  const { verifyIntegrity } = await import("../../../../scripts/vendor-verify.mjs");
+  verifyIntegrity();
   // Delegate to the Go service when it is configured.
   const raw = await request.text();
   const proxied = await forwardToGo("/v1/checkout", {

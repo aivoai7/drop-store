@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getLicense } from "@/lib/license/state";
+import { getAdminUser } from "@/lib/auth";
 import { LicenseForm } from "@/components/LicenseForm";
+import { LicensePurchase } from "@/components/LicensePurchase";
+import { LICENSE_PRICE_DISPLAY } from "@/lib/license/config";
 import { LicenseGate } from "@/components/LicenseGate";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +23,9 @@ const STATUS_TEXT: Record<string, string> = {
 export default async function LicensePage({
   searchParams,
 }: {
-  searchParams: Promise<{ activated?: string; next?: string }>;
+  searchParams: Promise<{ activated?: string; next?: string; buy?: string }>;
 }) {
-  const { activated, next } = await searchParams;
+  const { activated, next, buy } = await searchParams;
   const view = await getLicense();
 
   if (view.ok && activated === "1") {
@@ -48,7 +51,10 @@ export default async function LicensePage({
 
   // Licence valid (or trial still open) but the middleware cookie expired:
   // re-issue it and send the visitor back. Rendered as a brief stop-through.
-  if (view.ok) {
+  // ?buy=1 skips the bounce so an admin can reach the purchase page during
+  // the trial; non-admins just bounce back to the storefront.
+  const admin = buy === "1" ? await getAdminUser() : null;
+  if (view.ok && (buy !== "1" || !admin)) {
     return (
       <main className="grid min-h-screen place-items-center bg-black px-4 text-white">
         <div className="w-full max-w-sm text-center">
@@ -98,6 +104,20 @@ export default async function LicensePage({
           <p className="mt-3 text-[11px] text-neutral-500">
             已有授权码？现在激活即可无缝切换，试用剩余时间不作折抵。
           </p>
+        )}
+
+        {admin && (
+          <div className="mt-6 border-t border-white/10 pt-5">
+            <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-neutral-500">
+              {onTrial ? "想一直用？直接购买" : "没有授权码？"}
+            </p>
+            <LicensePurchase priceDisplay={LICENSE_PRICE_DISPLAY} />
+            {onTrial && (
+              <p className="mt-2 text-[11px] text-neutral-500">
+                付款后输入授权码立即转为正式授权，与试用期无缝衔接。
+              </p>
+            )}
+          </div>
         )}
 
         {view.inGrace && (

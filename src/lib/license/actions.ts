@@ -7,6 +7,7 @@ import { activate, deactivate } from "./state";
 import { recordAudit } from "../audit";
 import { getAdminUser } from "../auth";
 import { clientIp } from "../request";
+import { adminPath } from "@/lib/admin-path";
 
 export type LicenseFormState = { error?: string; ok?: boolean } | undefined;
 
@@ -43,8 +44,8 @@ export async function activateLicense(
 
 export async function deactivateLicense() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect(adminPath("/login"));
   await deactivate();
   revalidatePath("/license");
-  redirect("/admin/license?deactivated=1");
+  redirect(adminPath("/license?deactivated=1"));
 }

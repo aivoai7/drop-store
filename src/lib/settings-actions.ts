@@ -8,11 +8,12 @@ import { recordAudit } from "./audit";
 import { clientIp } from "./request";
 import { canEdit, canManageAdmins } from "./permissions";
 import { updateSettings } from "./store-settings";
+import { adminPath } from "@/lib/admin-path";
 
 async function requireEditor() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canEdit(admin.role)) redirect("/admin/settings?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canEdit(admin.role)) redirect(adminPath("/settings?denied=1"));
   return admin;
 }
 
@@ -48,9 +49,9 @@ export async function saveStoreSettings(formData: FormData) {
     target: "store",
     ip: await clientIp(),
   });
-  revalidatePath("/admin/settings");
+  revalidatePath(adminPath("/settings"));
   revalidatePath("/checkout");
-  redirect("/admin/settings?saved=1");
+  redirect(adminPath("/settings?saved=1"));
 }
 
 /* ---------------- tax ---------------- */
@@ -67,8 +68,8 @@ export async function createTaxRate(formData: FormData) {
 
   await prisma.taxRate.create({ data: { country, region, label, rate } });
   await recordAudit({ actor: admin, action: "tax.created", target: `${country}${region ? `/${region}` : ""}`, metadata: { label, rate }, ip: await clientIp() });
-  revalidatePath("/admin/tax");
-  redirect("/admin/tax?saved=1");
+  revalidatePath(adminPath("/tax"));
+  redirect(adminPath("/tax?saved=1"));
 }
 
 export async function updateTaxRate(formData: FormData) {
@@ -80,15 +81,15 @@ export async function updateTaxRate(formData: FormData) {
   if (!label || rate <= 0) redirect("/admin/tax?error=Invalid rate");
 
   await prisma.taxRate.update({ where: { id }, data: { label, rate, active } });
-  revalidatePath("/admin/tax");
-  redirect("/admin/tax?saved=1");
+  revalidatePath(adminPath("/tax"));
+  redirect(adminPath("/tax?saved=1"));
 }
 
 export async function deleteTaxRate(formData: FormData) {
   await requireEditor();
   await prisma.taxRate.delete({ where: { id: String(formData.get("id")) } });
-  revalidatePath("/admin/tax");
-  redirect("/admin/tax?saved=1");
+  revalidatePath(adminPath("/tax"));
+  redirect(adminPath("/tax?saved=1"));
 }
 
 /* ---------------- shipping ---------------- */
@@ -115,8 +116,8 @@ export async function createShippingMethod(formData: FormData) {
     },
   });
   await recordAudit({ actor: admin, action: "shipping.created", target: method.name, ip: await clientIp() });
-  revalidatePath("/admin/shipping");
-  redirect("/admin/shipping?saved=1");
+  revalidatePath(adminPath("/shipping"));
+  redirect(adminPath("/shipping?saved=1"));
 }
 
 export async function updateShippingMethod(formData: FormData) {
@@ -132,15 +133,15 @@ export async function updateShippingMethod(formData: FormData) {
       active: formData.get("active") === "on",
     },
   });
-  revalidatePath("/admin/shipping");
-  redirect("/admin/shipping?saved=1");
+  revalidatePath(adminPath("/shipping"));
+  redirect(adminPath("/shipping?saved=1"));
 }
 
 export async function deleteShippingMethod(formData: FormData) {
   await requireEditor();
   await prisma.shippingMethod.delete({ where: { id: String(formData.get("id")) } });
-  revalidatePath("/admin/shipping");
-  redirect("/admin/shipping?saved=1");
+  revalidatePath(adminPath("/shipping"));
+  redirect(adminPath("/shipping?saved=1"));
 }
 
 /* ---------------- currencies ---------------- */
@@ -170,8 +171,8 @@ export async function createCurrency(formData: FormData) {
     },
   });
   await recordAudit({ actor: admin, action: "currency.created", target: currency.code, metadata: { rate }, ip: await clientIp() });
-  revalidatePath("/admin/currencies");
-  redirect("/admin/currencies?saved=1");
+  revalidatePath(adminPath("/currencies"));
+  redirect(adminPath("/currencies?saved=1"));
 }
 
 export async function updateCurrency(formData: FormData) {
@@ -188,8 +189,8 @@ export async function updateCurrency(formData: FormData) {
       decimals: int(formData.get("decimals"), 2),
     },
   });
-  revalidatePath("/admin/currencies");
-  redirect("/admin/currencies?saved=1");
+  revalidatePath(adminPath("/currencies"));
+  redirect(adminPath("/currencies?saved=1"));
 }
 
 export async function deleteCurrency(formData: FormData) {
@@ -197,8 +198,8 @@ export async function deleteCurrency(formData: FormData) {
   const code = String(formData.get("code"));
   if (code === "usd") redirect("/admin/currencies?error=The base currency can't be removed");
   await prisma.currency.delete({ where: { code } });
-  revalidatePath("/admin/currencies");
-  redirect("/admin/currencies?saved=1");
+  revalidatePath(adminPath("/currencies"));
+  redirect(adminPath("/currencies?saved=1"));
 }
 
 /* ---------------- payment methods ---------------- */
@@ -211,8 +212,8 @@ export async function updatePaymentMethod(formData: FormData) {
 
   await prisma.paymentMethod.update({ where: { code }, data: { enabled, instructions } });
   await recordAudit({ actor: admin, action: "paymentmethod.updated", target: code, metadata: { enabled }, ip: await clientIp() });
-  revalidatePath("/admin/payment-methods");
-  redirect("/admin/payment-methods?saved=1");
+  revalidatePath(adminPath("/payment-methods"));
+  redirect(adminPath("/payment-methods?saved=1"));
 }
 
 export { canManageAdmins };

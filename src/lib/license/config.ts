@@ -13,6 +13,14 @@ export const CHECK_INTERVAL_MS = Number(process.env.LICENSE_CHECK_INTERVAL_MS ??
 export const GRACE_MS = Number(process.env.LICENSE_GRACE_MS ?? 72 * 60 * 60 * 1000);
 
 /**
+ * Self-serve purchase, served by the licence server. Shown on the locked
+ * /license page as "buy a licence" when the price is configured; empty string
+ * hides the button (vendor-only licensing).
+ */
+export const LICENSE_PRICE_DISPLAY =
+  process.env.LICENSE_PRICE_DISPLAY ?? "$49 / year";
+
+/**
  * Free trial for fresh deployments. It starts the first time the store is
  * loaded and ends the moment a licence key is verified — after it expires the
  * site locks to /license until a key is entered.

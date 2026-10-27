@@ -7,11 +7,12 @@ import { getAdminUser } from "./auth";
 import { recordAudit } from "./audit";
 import { clientIp } from "./request";
 import { canEdit } from "./permissions";
+import { adminPath } from "@/lib/admin-path";
 
 async function requireEditor() {
   const admin = await getAdminUser();
-  if (!admin) redirect("/admin/login");
-  if (!canEdit(admin.role)) redirect("/admin/categories?denied=1");
+  if (!admin) redirect(adminPath("/login"));
+  if (!canEdit(admin.role)) redirect(adminPath("/categories?denied=1"));
   return admin;
 }
 
@@ -39,9 +40,9 @@ export async function createCategory(formData: FormData) {
     target: category.slug,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/categories");
-  revalidatePath("/admin/categories");
-  redirect("/admin/categories?saved=1");
+  revalidatePath(adminPath("/categories"));
+  revalidatePath(adminPath("/categories"));
+  redirect(adminPath("/categories?saved=1"));
 }
 
 export async function updateCategory(formData: FormData) {
@@ -53,7 +54,7 @@ export async function updateCategory(formData: FormData) {
   if (name.length < 2) redirect("/admin/categories?error=Enter a category name");
 
   const before = await prisma.category.findUnique({ where: { id } });
-  if (!before) redirect("/admin/categories");
+  if (!before) redirect(adminPath("/categories"));
 
   await prisma.category.update({ where: { id }, data: { name, description, hidden } });
   await recordAudit({
@@ -63,9 +64,9 @@ export async function updateCategory(formData: FormData) {
     metadata: { from: before.name, to: name, hidden },
     ip: await clientIp(),
   });
-  revalidatePath("/admin/categories");
-  revalidatePath("/admin/categories");
-  redirect("/admin/categories?saved=1");
+  revalidatePath(adminPath("/categories"));
+  revalidatePath(adminPath("/categories"));
+  redirect(adminPath("/categories?saved=1"));
 }
 
 export async function deleteCategory(formData: FormData) {
@@ -75,7 +76,7 @@ export async function deleteCategory(formData: FormData) {
     where: { id },
     include: { _count: { select: { products: true } } },
   });
-  if (!category) redirect("/admin/categories");
+  if (!category) redirect(adminPath("/categories"));
 
   if (category._count.products > 0) {
     redirect("/admin/categories?error=Move or delete the products in this category first");
@@ -88,7 +89,7 @@ export async function deleteCategory(formData: FormData) {
     target: category.slug,
     ip: await clientIp(),
   });
-  revalidatePath("/admin/categories");
-  revalidatePath("/admin/categories");
-  redirect("/admin/categories?saved=1");
+  revalidatePath(adminPath("/categories"));
+  revalidatePath(adminPath("/categories"));
+  redirect(adminPath("/categories?saved=1"));
 }

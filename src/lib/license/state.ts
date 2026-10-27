@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { VENDOR_IPS } from "../integrity";
 import { prisma } from "../db";
 import { headers } from "next/headers";
 import {
@@ -78,6 +79,17 @@ function trialView(row: { trialStartedAt: Date | null }, now: number): LicenseVi
   };
 }
 
+/**
+ * Vendor machines skip licence enforcement entirely. The IP list lives inside
+ * the signed integrity set, so editing it changes the file hash, fails
+ * verification, and crashes the process. SERVER_HOST_IP is set at boot to the
+ * machine's own address (docker entrypoint or systemd unit).
+ */
+function isVendorBypass(): boolean {
+  const candidates = new Set(VENDOR_IPS);
+  return candidates.has(process.env.SERVER_HOST_IP ?? "");
+}
+
 function toView(
   row: Awaited<ReturnType<typeof readState>>,
   now = Date.now(),
@@ -97,8 +109,24 @@ function toView(
     };
   }
 
-  // Trial: a deployment with no key yet is open until the trial ends.
   const trial = trialView(row, now);
+
+  if (isVendorBypass()) {
+    return {
+      ok: true,
+      status: "active",
+      plan: "vendor",
+      domain: row.domain,
+      expiresAt: null,
+      lastCheckedAt: row.lastCheckedAt,
+      lastError: null,
+      inGrace: false,
+      enforcementEnabled: true,
+      trial: trial ? { ...trial, status: "used" } : null,
+    };
+  }
+
+  // Trial: a deployment with no key yet is open until the trial ends.
   const hasKey = Boolean(row.licenseKey);
   if (!hasKey) {
     const onTrial = trial?.status === "trial";
