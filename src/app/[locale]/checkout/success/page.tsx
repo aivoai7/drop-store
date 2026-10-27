@@ -25,13 +25,46 @@ export default async function SuccessPage({
     : null;
   const user = await getSessionUser();
 
-  if (!order) {
+  // Order IDs are enumerable (DRP-<timestamp>), so amounts and status only go
+  // to the owner. Anyone else with the URL gets a generic confirmation.
+  const ownsOrder = Boolean(order && user && order.userId === user.id);
+
+  if (!order || !ownsOrder) {
     return (
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
-        <h1 className="text-3xl font-black uppercase">{t("success.notFound")}</h1>
-        <Link href={`/${locale}/shop`} className="mt-6 inline-block text-lime-400">
-          {t("checkout.backToShop")}
-        </Link>
+        <p className="text-xs font-black tracking-[0.4em] text-lime-400">
+          {t("success.processing")}
+        </p>
+        <h1 className="mt-3 text-4xl font-black uppercase">{t("success.titleConfirmed")}</h1>
+        <p className="mt-4 text-neutral-300">
+          {t("success.descPending", { id: orderId ?? "" })}
+        </p>
+        <p className="mt-2 text-sm text-neutral-500">
+          订单详情请查看确认邮件，或登录后访问「我的订单」。
+        </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          {user ? (
+            <Link
+              href={`/${locale}/account`}
+              className="bg-lime-400 px-8 py-3 text-sm font-black uppercase tracking-widest text-black"
+            >
+              {t("success.viewOrders")}
+            </Link>
+          ) : (
+            <Link
+              href={`/${locale}/signup?next=/${locale}/account`}
+              className="bg-lime-400 px-8 py-3 text-sm font-black uppercase tracking-widest text-black"
+            >
+              {t("success.createAccount")}
+            </Link>
+          )}
+          <Link
+            href={`/${locale}/shop`}
+            className="border border-white/30 px-8 py-3 text-sm font-black uppercase tracking-widest hover:bg-white hover:text-black"
+          >
+            {t("success.keepShopping")}
+          </Link>
+        </div>
       </div>
     );
   }

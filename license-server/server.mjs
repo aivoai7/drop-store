@@ -13,7 +13,7 @@
  * Swap `store` for Postgres when you outgrow it.
  */
 import http from 'node:http';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -63,16 +63,44 @@ function body(req) {
   });
 }
 
+/** Timing-safe compare so admin-secret checks don't leak byte-by-byte. */
+function secretsMatch(a) {
+  const ab = Buffer.from(String(a ?? ''));
+  const bb = Buffer.from(ADMIN_SECRET);
+  if (ab.length !== bb.length) {
+    // Burn comparable time so length doesn't leak either.
+    timingSafeEqual(bb, bb);
+    return false;
+  }
+  return timingSafeEqual(ab, bb);
+}
+
 function requireAdmin(data, res) {
   if (!ADMIN_SECRET) {
     json(res, 503, { error: 'LICENCE_ADMIN_SECRET is not configured' });
     return false;
   }
-  if (data.adminSecret !== ADMIN_SECRET) {
+  if (!secretsMatch(data.adminSecret, ADMIN_SECRET)) {
     json(res, 403, { error: 'Forbidden' });
     return false;
   }
   return true;
+}
+
+/* Naive in-memory limiter: fine for a single-process admin API. */
+const WINDOW_MS = 60_000;
+const WINDOW_MAX = 120;
+const hits = new Map();
+function tooManyRequests(req) {
+  const key = req.socket.remoteAddress ?? 'unknown';
+  const now = Date.now();
+  const entry = hits.get(key);
+  if (!entry || now > entry.reset) {
+    hits.set(key, { count: 1, reset: now + WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > WINDOW_MAX;
 }
 
 /** Activation log, so a shared key is visible. */
@@ -86,6 +114,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
   if (req.method === 'OPTIONS') return json(res, 204, {});
+  if (tooManyRequests(req)) return json(res, 429, { error: 'Too many requests' });
 
   if (req.method === 'POST' && url.pathname === '/v1/verify') {
     const data = await body(req);
@@ -159,7 +188,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/list') {
-    if (!ADMIN_SECRET || url.searchParams.get('adminSecret') !== ADMIN_SECRET) {
+    if (!ADMIN_SECRET || !secretsMatch(url.searchParams.get('adminSecret'), ADMIN_SECRET)) {
       return json(res, 403, { error: 'Forbidden' });
     }
     const db = load();

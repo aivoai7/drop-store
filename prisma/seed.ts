@@ -498,7 +498,9 @@ async function main() {
   });
 
   const demoAdminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@drop.test";
-  const demoAdminPassword = process.env.SEED_ADMIN_PASSWORD ?? "<change-me>";
+  // Never ship a guessable default: generate one and print it once.
+  const demoAdminPassword =
+    process.env.SEED_ADMIN_PASSWORD ?? randomBytes(18).toString("base64url");
   await prisma.adminUser.create({
     data: {
       email: demoAdminEmail,
