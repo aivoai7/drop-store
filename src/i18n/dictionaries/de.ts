@@ -81,8 +81,8 @@ export const de: Dictionary = {
   "checkout.pay": "{amount} bezahlen",
   "checkout.placing": "Bestellung wird aufgegeben…",
   "checkout.calculating": "Wird berechnet…",
-  "checkout.demoNote": "Demo-Kasse — es wird nichts wirklich abgebucht.",
-  "checkout.cardNumber": "Kartennummer (Demo)",
+  "checkout.demoNote": "Die Kasse läuft im Testmodus — es wird nichts abgebucht.",
+  "checkout.cardNumber": "Kartennummer",
   "checkout.nothing": "Nichts zum Bezahlen.",
   "checkout.backToShop": "Zurück zum Shop",
 
@@ -141,7 +141,7 @@ export const de: Dictionary = {
   "footer.shopAll": "Alle Produkte",
   "footer.myAccount": "Mein Konto",
   "footer.admin": "Admin",
-  "footer.rights": "© {year} DROP. Demo-Shop.",
+  "footer.rights": "© {year} DROP. Alle Rechte vorbehalten.",
 
   "common.loading": "Wird geladen…",
   "common.close": "Schließen",

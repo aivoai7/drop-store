@@ -288,7 +288,7 @@ export default async function OrderDetailPage({
                   </div>
                   <div className="flex justify-between">
                     <dt>{copy("ord.provider")}</dt>
-                    <dd className="text-neutral-200">{order.paymentProvider ?? "demo"}</dd>
+                    <dd className="text-neutral-200">{order.paymentProvider ?? "manual"}</dd>
                   </div>
                   {order.refundAmount > 0 && (
                     <div className="flex justify-between text-amber-400">

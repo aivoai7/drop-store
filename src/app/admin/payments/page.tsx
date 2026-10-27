@@ -151,7 +151,7 @@ export default async function PaymentsPage({
                       {order.id}
                     </Link>
                     <p className="text-xs text-neutral-500">
-                      {order.email} · {order.paymentProvider ?? "demo"}
+                      {order.email} · {order.paymentProvider ?? "manual"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

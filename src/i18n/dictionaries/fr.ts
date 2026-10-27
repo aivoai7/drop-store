@@ -81,8 +81,8 @@ export const fr: Dictionary = {
   "checkout.pay": "Payer {amount}",
   "checkout.placing": "Commande en cours…",
   "checkout.calculating": "Calcul en cours…",
-  "checkout.demoNote": "Paiement de démonstration — aucun débit réel.",
-  "checkout.cardNumber": "Numéro de carte (démo)",
+  "checkout.demoNote": "Paiement en mode test — aucun débit réel.",
+  "checkout.cardNumber": "Numéro de carte",
   "checkout.nothing": "Rien à commander.",
   "checkout.backToShop": "Retour à la boutique",
 
@@ -141,7 +141,7 @@ export const fr: Dictionary = {
   "footer.shopAll": "Tous les produits",
   "footer.myAccount": "Mon compte",
   "footer.admin": "Admin",
-  "footer.rights": "© {year} DROP. Boutique démo.",
+  "footer.rights": "© {year} DROP. Tous droits réservés.",
 
   "common.loading": "Chargement…",
   "common.close": "Fermer",

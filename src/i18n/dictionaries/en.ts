@@ -79,8 +79,8 @@ export const en = {
   "checkout.pay": "Pay {amount}",
   "checkout.placing": "Placing order…",
   "checkout.calculating": "Calculating…",
-  "checkout.demoNote": "Demo checkout — no real payment is taken.",
-  "checkout.cardNumber": "Card number (demo)",
+  "checkout.demoNote": "This checkout runs in test mode — no card is charged.",
+  "checkout.cardNumber": "Card number",
   "checkout.nothing": "Nothing to check out.",
   "checkout.backToShop": "Back to shop",
 
@@ -139,7 +139,7 @@ export const en = {
   "footer.shopAll": "Shop all",
   "footer.myAccount": "My account",
   "footer.admin": "Admin",
-  "footer.rights": "© {year} DROP. Demo store.",
+  "footer.rights": "© {year} DROP. All rights reserved.",
 
   "common.loading": "Loading…",
   "common.close": "Close",

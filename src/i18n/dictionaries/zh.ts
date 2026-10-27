@@ -81,8 +81,8 @@ export const zh: Dictionary = {
   "checkout.pay": "支付 {amount}",
   "checkout.placing": "正在下单…",
   "checkout.calculating": "正在计算…",
-  "checkout.demoNote": "演示结账 — 不会产生真实扣款。",
-  "checkout.cardNumber": "卡号（演示）",
+  "checkout.demoNote": "结账处于测试模式，不会真实扣款。",
+  "checkout.cardNumber": "卡号",
   "checkout.nothing": "购物袋中没有商品。",
   "checkout.backToShop": "返回商品页",
 
@@ -141,7 +141,7 @@ export const zh: Dictionary = {
   "footer.shopAll": "全部商品",
   "footer.myAccount": "我的账户",
   "footer.admin": "管理后台",
-  "footer.rights": "© {year} DROP。演示店铺。",
+  "footer.rights": "© {year} DROP。保留所有权利。",
 
   "common.loading": "加载中…",
   "common.close": "关闭",

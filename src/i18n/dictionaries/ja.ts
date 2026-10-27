@@ -81,8 +81,8 @@ export const ja: Dictionary = {
   "checkout.pay": "{amount} を支払う",
   "checkout.placing": "注文処理中…",
   "checkout.calculating": "計算中…",
-  "checkout.demoNote": "デモ決済 — 実際の請求は発生しません。",
-  "checkout.cardNumber": "カード番号（デモ）",
+  "checkout.demoNote": "決済はテストモードで動作しています — 実際の請求は発生しません。",
+  "checkout.cardNumber": "カード番号",
   "checkout.nothing": "購入する商品がありません。",
   "checkout.backToShop": "ショップに戻る",
 
@@ -141,7 +141,7 @@ export const ja: Dictionary = {
   "footer.shopAll": "すべての商品",
   "footer.myAccount": "マイアカウント",
   "footer.admin": "管理画面",
-  "footer.rights": "© {year} DROP. デモストア。",
+  "footer.rights": "© {year} DROP. All rights reserved.",
 
   "common.loading": "読み込み中…",
   "common.close": "閉じる",
