@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: drop-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-drop}
+      # Dev-only default. Override in .env for anything beyond local use.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drop}
+      POSTGRES_DB: ${POSTGRES_DB:-drop_store}
+    ports:
+      - "5433:5432"
+    volumes:
+      - drop-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-drop} -d ${POSTGRES_DB:-drop_store}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  drop-db-data:

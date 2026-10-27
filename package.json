@@ -1,26 +1,44 @@
 {
-  "name": "xiangmu",
+  "name": "drop-store",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
+    "postinstall": "prisma generate",
+    "cron:cleanup": "curl -s -H \"Authorization: Bearer $CRON_SECRET\" http://localhost:3002/api/cron/cleanup",
+    "mcp": "tsx mcp/stdio.ts",
+    "mcp:dev": "tsx --watch mcp/stdio.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@prisma/client": "^6.19.3",
+    "lucide-react": "^1.61.0",
     "next": "16.4.3",
+    "pdfkit": "^0.20.2",
+    "prisma": "^6.19.3",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "resend": "^6.34.1",
+    "stripe": "^23.0.1",
+    "zod": "^4.6.7",
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
+    "@types/pdfkit": "^0.17.7",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

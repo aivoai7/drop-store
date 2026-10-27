@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String    @id
+  name        String
+  slug        String    @unique
+  description String?
+  position    Int       @default(0)
+  hidden      Boolean   @default(false)
+  products    Product[]
+}
+
+model Product {
+  id          String    @id
+  slug        String    @unique
+  name        String
+  tagline     String
+  description String
+  price       Int
+  compareAt   Int?
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
+  badge       String?
+  // JSON: { "zh": { "name": "...", "tagline": "...", "description": "..." }, ... }
+  translations String?
+  // Canonical option lists, order preserved. Variants cover every combination.
+  colors      String
+  sizes       String
+  images      String
+  featured    Boolean   @default(false)
+  // Cached sum of variant stock; kept in sync by syncVariants().
+  stock       Int       @default(20)
+  // draft | active | archived
+  status      String    @default("active")
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  variants    Variant[]
+
+  @@index([status])
+  @@index([categoryId])
+}
+
+model Variant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku       String  @unique
+  color     String
+  size      String
+  stock     Int     @default(0)
+  // null = inherit Product.price
+  price     Int?
+
+  @@unique([productId, color, size])
+  @@index([productId])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  disabled     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  orders       Order[]
+  sessions     Session[]
+  resetTokens  PasswordResetToken[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// One row per attempt in a named bucket, e.g. "login:ip:1.2.3.4".
+model RateLimitEvent {
+  id        String   @id @default(cuid())
+  bucket    String
+  createdAt DateTime @default(now())
+
+  @@index([bucket, createdAt])
+  @@index([createdAt])
+}
+
+model AdminUser {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  // owner = full access, manager = store ops, viewer = read only
+  role         String         @default("owner")
+  disabled     Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  lastLoginAt  DateTime?
+  sessions     AdminSession[]
+  auditLogs    AuditLog[]
+  mcpTokens    McpToken[]
+}
+
+model McpToken {
+  id         String    @id @default(cuid())
+  name       String
+  tokenHash  String    @unique
+  // Prefix kept in clear so a token can be identified in the UI after creation.
+  prefix     String
+  adminId    String
+  admin      AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([adminId])
+}
+
+model AdminSession {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  adminId   String
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([adminId])
+}
+
+model AuditLog {
+  id         String     @id @default(cuid())
+  actorId    String?
+  actor      AdminUser? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String
+  action     String
+  target     String?
+  metadata   String?
+  ip         String?
+  createdAt  DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([action])
+}
+
+model Discount {
+  id            String               @id @default(cuid())
+  code          String               @unique
+  // percentage | fixed
+  type          String
+  // percent (1-100) or cents
+  value         Int
+  minSubtotal   Int                  @default(0)
+  usageLimit    Int?
+  usedCount     Int                  @default(0)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  active        Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  redemptions   DiscountRedemption[]
+}
+
+model DiscountRedemption {
+  id         String   @id @default(cuid())
+  discountId String
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  orderId    String   @unique
+  email      String
+  amount     Int
+  createdAt  DateTime @default(now())
+
+  @@index([discountId])
+}
+
+model Order {
+  id                    String      @id
+  userId                String?
+  user                  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email                 String
+  name                  String
+  address               String
+  city                  String
+  region                String?
+  country               String
+  subtotal              Int         @default(0)
+  shipping              Int         @default(0)
+  taxAmount             Int         @default(0)
+  taxRate               Int         @default(0)
+  taxLabel              String?
+  discountCode          String?
+  discountAmount        Int         @default(0)
+  total                 Int
+  // All monetary fields above are in the store's minor unit for `currency`.
+  currency              String      @default("usd")
+  // Prices are stored in the base currency; this is the rate used at checkout.
+  fxRate                Float       @default(1)
+  paymentMethod         String?
+  shippingMethodId      String?
+  // Fulfilment: pending | paid | shipped | cancelled
+  status                String      @default("pending")
+  // Payment: pending | paid | failed | refunded
+  paymentStatus         String      @default("pending")
+  paymentProvider       String?
+  stripeSessionId       String?     @unique
+  stripePaymentIntentId String?
+  // Provider-neutral reference: Stripe payment intent or PayPal capture id.
+  paymentReference      String?
+  refundedAt            DateTime?
+  refundAmount          Int         @default(0)
+  refundReason          String?
+  refundedByAdminEmail  String?
+  // Fulfilment extras
+  trackingNumber        String?
+  carrier               String?
+  shippedAt             DateTime?
+  cancelledAt           DateTime?
+  stockRestored         Boolean     @default(false)
+  adminNote             String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  items                 OrderItem[]
+
+  @@index([createdAt])
+  @@index([email])
+  @@index([status])
+}
+
+// Every money movement, so the payments view can show a ledger rather than
+// inferring history from the order's current state.
+model Invoice {
+  id        String   @id @default(cuid())
+  number    String   @unique
+  orderId   String   @unique
+  issuedAt  DateTime @default(now())
+
+  @@index([issuedAt])
+}
+
+model PaymentEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  type      String
+  amount    Int
+  provider  String?
+  reference String?
+  actor     String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+}
+
+model EmailMessage {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  template  String
+  provider  String
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Single-row settings, edited from /admin/settings.
+model StoreSettings {
+  id                   String   @id @default("default")
+  baseCurrency         String   @default("usd")
+  // Taxes are on or off; rates come from TaxRate.
+  taxEnabled           Boolean  @default(false)
+  // "shipping" (default Shopify-style) or "billing"
+  taxBasis             String   @default("shipping")
+  // Charge tax on shipping too.
+  taxShipping          Boolean  @default(false)
+  // Applied when no country-specific rate matches.
+  fallbackTaxRate      Int      @default(0)
+  pricesIncludeTax     Boolean  @default(false)
+  freeShippingThreshold Int     @default(15000)
+  invoicePrefix        String   @default("INV")
+  invoiceNextNumber    Int      @default(1001)
+  invoiceShowTaxId     Boolean  @default(true)
+  updatedAt            DateTime @updatedAt
+}
+
+model TaxRate {
+  id        String   @id @default(cuid())
+  // ISO 3166-1 alpha-2, or "*" for every country.
+  country   String
+  // Optional state/province narrowing (e.g. "CA").
+  region    String?
+  label     String
+  // Basis points: 825 = 8.25%
+  rate      Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([country, region])
+}
+
+model ShippingMethod {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  price         Int      @default(0)
+  // null = applies everywhere
+  countries     String?
+  freeOver      Int?
+  minSubtotal   Int      @default(0)
+  // Lowest wins when several methods qualify.
+  position      Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+model Currency {
+  code      String   @id
+  name      String
+  symbol    String
+  // Rate against the base currency; base itself is always 1.
+  rate      Float
+  // Round display to this many decimals (JPY = 0).
+  decimals  Int      @default(2)
+  active    Boolean  @default(true)
+  position  Int      @default(0)
+}
+
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  // "card" | "paypal" | "apple_pay" | "google_pay" | "cod" | "bank_transfer"
+  code        String   @unique
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  // Only methods with an automated gateway can settle immediately.
+  automated   Boolean  @default(false)
+  instructions String?
+  position    Int      @default(0)
+}
+
+model OrderItem {
+  id        String  @id
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  variantId String?
+  sku       String?
+  name      String
+  price     Int
+  quantity  Int
+  size      String
+  color     String
+}
