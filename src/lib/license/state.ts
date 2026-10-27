@@ -7,6 +7,7 @@ import {
   LICENSE_KEY,
   LICENSE_PRODUCT,
   LICENSE_SERVER_URL,
+  TRIAL_MS,
   enforcementEnabled,
   type LicenseStatus,
 } from "./config";
@@ -22,6 +23,14 @@ export type LicenseView = {
   /** True when we are inside the offline grace window. */
   inGrace: boolean;
   enforcementEnabled: boolean;
+  /** Trial state: null when this deployment has never run a trial. */
+  trial: {
+    status: "trial" | "trial_expired" | "used";
+    startedAt: Date;
+    endsAt: Date;
+    /** Whole days left, only meaningful while status is "trial". */
+    daysLeft: number;
+  } | null;
 };
 
 /** Stable-ish install identity: host + product. Prevents copying one key to many hosts. */
@@ -53,6 +62,22 @@ async function readState() {
   });
 }
 
+function trialView(row: { trialStartedAt: Date | null }, now: number): LicenseView["trial"] {
+  if (!row.trialStartedAt) return null;
+  const startedAt = row.trialStartedAt;
+  const endsAt = new Date(startedAt.getTime() + TRIAL_MS);
+  if (now >= endsAt.getTime()) {
+    return { status: "trial_expired", startedAt, endsAt, daysLeft: 0 };
+  }
+  const msLeft = endsAt.getTime() - now;
+  return {
+    status: "trial",
+    startedAt,
+    endsAt,
+    daysLeft: Math.ceil(msLeft / (24 * 60 * 60 * 1000)),
+  };
+}
+
 function toView(
   row: Awaited<ReturnType<typeof readState>>,
   now = Date.now(),
@@ -68,6 +93,26 @@ function toView(
       lastError: null,
       inGrace: false,
       enforcementEnabled: false,
+      trial: null,
+    };
+  }
+
+  // Trial: a deployment with no key yet is open until the trial ends.
+  const trial = trialView(row, now);
+  const hasKey = Boolean(row.licenseKey);
+  if (!hasKey) {
+    const onTrial = trial?.status === "trial";
+    return {
+      ok: onTrial,
+      status: onTrial ? "trial" : "trial_expired",
+      plan: onTrial ? "trial" : null,
+      domain: row.domain,
+      expiresAt: trial?.endsAt ?? null,
+      lastCheckedAt: row.lastCheckedAt,
+      lastError: onTrial ? null : "试用期已结束，请输入授权码激活",
+      inGrace: false,
+      enforcementEnabled: true,
+      trial,
     };
   }
 
@@ -92,6 +137,9 @@ function toView(
     lastError: row.lastError,
     inGrace,
     enforcementEnabled: true,
+    // A keyed deployment may predate trials entirely; report the trial only
+    // when one actually ran.
+    trial: trial ? { ...trial, status: "used" } : null,
   };
 }
 
@@ -230,21 +278,36 @@ async function persist(patch: {
 export async function getLicense(force = false): Promise<LicenseView> {
   if (!enforcementEnabled) return toView(await readState());
 
-  const row = await readState();
+  const row = await ensureTrialStarted();
+
+  const key = row.licenseKey ?? LICENSE_KEY;
+  if (!key) {
+    // No key yet: the trial clock decides whether the store stays open.
+    return toView(row);
+  }
+
   const stale =
     force ||
     !row.lastCheckedAt ||
     Date.now() - row.lastCheckedAt.getTime() > CHECK_INTERVAL_MS;
+  if (!stale) return toView(row);
 
-  if (stale) {
-    const key = row.licenseKey ?? LICENSE_KEY;
-    if (!key) return toView({ ...row, status: "invalid", lastError: "No licence key configured" });
-    const domain = row.domain ?? (await resolveDomain());
-    const result = await verifyWithServer(key, domain);
-    return result.ok ? result.view : { ...toView(await readState()), ok: false };
-  }
+  const domain = row.domain ?? (await resolveDomain());
+  const result = await verifyWithServer(key, domain);
+  return result.ok ? result.view : { ...toView(await readState()), ok: false };
+}
 
-  return toView(row);
+/**
+ * Binds the trial to this deployment the first time the store loads. The
+ * upsert is the write-once point: later updates never touch trialStartedAt,
+ * so re-deploying or wiping the cache row can't reset the clock.
+ */
+async function ensureTrialStarted() {
+  return prisma.licenseState.upsert({
+    where: { id: "default" },
+    create: { id: "default", trialStartedAt: new Date() },
+    update: {},
+  });
 }
 
 export async function activate(key: string): Promise<ActivationResult> {

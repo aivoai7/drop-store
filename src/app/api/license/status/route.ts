@@ -21,10 +21,19 @@ export async function GET() {
     inGrace: view.inGrace,
     enforcementEnabled: view.enforcementEnabled,
     lastError: view.lastError,
+    trial: view.trial
+      ? {
+          status: view.trial.status,
+          startedAt: view.trial.startedAt,
+          endsAt: view.trial.endsAt,
+          daysLeft: view.trial.daysLeft,
+        }
+      : null,
   });
 
   if (enforcementEnabled) {
     if (view.ok) {
+      // A valid key or an open trial both earn the middleware cookie.
       res.cookies.set(COOKIE, "1", {
         httpOnly: true,
         sameSite: "lax",

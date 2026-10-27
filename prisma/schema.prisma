@@ -298,7 +298,7 @@ model EmailMessage {
 model LicenseState {
   id            String    @id @default("default")
   licenseKey    String?
-  status        String    @default("active") // active | invalid | expired | unreachable
+  status        String    @default("active") // active | trial | trial_expired | invalid | expired | unreachable
   domain        String?
   plan          String?
   seats         Int       @default(1)
@@ -309,6 +309,8 @@ model LicenseState {
   lastError     String?
   /// Set once the deployment has been bound; prevents key sharing across hosts.
   fingerprint   String?
+  /// Set on the first request of a fresh deployment; the free trial runs from here.
+  trialStartedAt DateTime?
   updatedAt     DateTime  @updatedAt
 }
 
@@ -385,6 +387,17 @@ model PaymentMethod {
   automated   Boolean  @default(false)
   instructions String?
   position    Int      @default(0)
+}
+
+/// Per-gateway credentials edited from /admin/integrations. Secret fields are
+/// AES-256-GCM encrypted at rest; env vars still work and lose to the DB row.
+model GatewayConfig {
+  id        String   @id // "stripe" | "paypal"
+  /// Encrypted payloads: {"secretKey":"...","webhookSecret":"..."} etc. JSON.
+  secrets   String
+  /// Non-secret display info, e.g. PayPal client id or Stripe mode. JSON.
+  meta      String?
+  updatedAt DateTime @updatedAt
 }
 
 model OrderItem {

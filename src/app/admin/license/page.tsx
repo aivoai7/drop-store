@@ -9,6 +9,8 @@ import { at } from "@/lib/admin-copy/zh";
 export const dynamic = "force-dynamic";
 
 const STATUS: Record<string, { label: string; tone: string }> = {
+  trial: { label: "免费试用中", tone: "bg-lime-400/15 text-lime-400" },
+  trial_expired: { label: "试用已结束", tone: "bg-red-500/15 text-red-400" },
   active: { label: "有效", tone: "bg-lime-400/15 text-lime-400" },
   expired: { label: "已过期", tone: "bg-red-500/15 text-red-400" },
   invalid: { label: "无效", tone: "bg-red-500/15 text-red-400" },
@@ -36,6 +38,18 @@ export default async function AdminLicensePage({
       {deactivated && (
         <p className="mt-4 border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
           已在本机停用授权。前台将在下次校验后锁定。
+        </p>
+      )}
+
+      {view.trial && (
+        <p className={`mt-4 border px-3 py-2 text-xs ${
+          view.trial.status === "trial"
+            ? "border-lime-500/40 bg-lime-500/10 text-lime-300"
+            : "border-red-500/40 bg-red-500/10 text-red-300"
+        }`}>
+          {view.trial.status === "trial"
+            ? `免费试用期：还剩 ${view.trial.daysLeft} 天（${view.trial.endsAt.toLocaleDateString("zh-CN")} 截止）。到期后前台将锁定，输入授权码即可激活。`
+            : "试用期已结束，前台已锁定。输入授权码即可恢复访问。"}
         </p>
       )}
 

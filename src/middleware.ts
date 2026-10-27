@@ -32,9 +32,11 @@ export function middleware(request: NextRequest) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "Licence required" }, { status: 402 });
     }
+    // /license re-checks server-side: a valid licence or an open trial gets
+    // the cookie re-issued and the visitor sent on their way.
     const url = request.nextUrl.clone();
     url.pathname = "/license";
-    url.search = "";
+    url.search = `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(url);
   }
 
