@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { AuthForm } from "@/components/AuthForm";
+import { AuthShell } from "@/components/AuthShell";
 import { translator, type Locale } from "@/i18n";
 import { isLocale } from "@/i18n/config";
 
@@ -24,16 +25,21 @@ export default async function SignupPage({
   const nextParam = next ? `?next=${encodeURIComponent(next)}` : "";
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-20">
-      <h1 className="text-3xl font-black uppercase tracking-tight">{t("auth.signUpTitle")}</h1>
-      <p className="mt-2 text-sm text-neutral-400">{t("auth.signUpSubtitle")}</p>
+    <AuthShell
+      locale={locale}
+      eyebrow="Join DROP"
+      title={t("auth.signUpTitle")}
+      subtitle={t("auth.signUpSubtitle")}
+      footer={
+        <p>
+          {t("auth.haveAccount")}{" "}
+          <Link href={`/${locale}/login${nextParam}`} className="font-bold text-lime-400 hover:underline">
+            {t("auth.signIn")} →
+          </Link>
+        </p>
+      }
+    >
       <AuthForm mode="signup" next={next} locale={locale as Locale} />
-      <p className="mt-6 text-sm text-neutral-400">
-        {t("auth.haveAccount")}{" "}
-        <Link href={`/${locale}/login${nextParam}`} className="text-lime-400">
-          {t("auth.signIn")}
-        </Link>
-      </p>
-    </div>
+    </AuthShell>
   );
 }
