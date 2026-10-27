@@ -294,6 +294,24 @@ model EmailMessage {
   @@index([createdAt])
 }
 
+/// Cached licence state, refreshed from the licence server.
+model LicenseState {
+  id            String    @id @default("default")
+  licenseKey    String?
+  status        String    @default("active") // active | invalid | expired | unreachable
+  domain        String?
+  plan          String?
+  seats         Int       @default(1)
+  expiresAt     DateTime?
+  lastCheckedAt DateTime?
+  /// When the server was first found unreachable; drives the grace window.
+  unreachableSince DateTime?
+  lastError     String?
+  /// Set once the deployment has been bound; prevents key sharing across hosts.
+  fingerprint   String?
+  updatedAt     DateTime  @updatedAt
+}
+
 /// Single-row settings, edited from /admin/settings.
 model StoreSettings {
   id                   String   @id @default("default")

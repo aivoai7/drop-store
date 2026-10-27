@@ -24,6 +24,7 @@ export const adminZh = {
   "nav.audit": "操作日志",
   "nav.mcp": "MCP",
   "nav.account": "账户",
+  "nav.license": "授权",
   "nav.viewStore": "查看前台",
   "nav.signOut": "退出登录",
   "nav.admin": "管理后台",

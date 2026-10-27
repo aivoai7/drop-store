@@ -238,6 +238,56 @@ stdio:
 }
 ```
 
+## Licence enforcement
+
+The store can require an activation code before it will run. Enforcement is
+**opt-in**: with `LICENSE_SERVER_URL` unset the app runs unlicensed (dev/staging).
+Set it in production and the whole site — storefront, admin and every API except
+the licence and webhook endpoints — locks until a valid key is entered.
+
+```
+LICENSE_SERVER_URL="https://licence.yourdomain.com"
+LICENSE_KEY="DROP-XXXX-XXXX-XXXX-XXXX"   # optional; can also be entered at /license
+LICENSE_GRACE_MS="259200000"             # 72h offline tolerance
+```
+
+### Flow
+
+1. Middleware checks a short-lived `DROP_LICENSE_OK` cookie (15 min).
+2. Without it, every path redirects to `/license` (APIs get `402`).
+3. `/license` calls the licence server, and on success sets the cookie.
+4. The state is cached in `LicenseState` and re-verified every
+   `LICENSE_CHECK_INTERVAL_MS` (default 6h).
+
+### Failure behaviour
+
+| Situation | Behaviour |
+| --- | --- |
+| No key / wrong key | Locked, error shown in Chinese |
+| Revoked | Locked on the next check |
+| Expired | Locked |
+| Server unreachable | **Grace window** — store keeps working for `LICENSE_GRACE_MS`, then locks |
+| `LICENSE_SERVER_URL` unset | No enforcement at all |
+
+The grace timer starts at the **first** failure and is never reset by retries,
+so an outage can't be used to extend a licence indefinitely.
+
+### Licence server
+
+`license-server/` is a self-contained Node service (JSON file, no dependencies):
+
+```bash
+LICENCE_ADMIN_SECRET=change-me npm run license:server
+```
+
+- `POST /v1/issue` → returns a key **once**; only its SHA-256 is stored
+- `POST /v1/verify` → validates key, product, domain, expiry, seat
+- `POST /v1/revoke`
+- `GET /v1/list?adminSecret=…` → keys (hashed) and the last 50 activations
+
+Keys are bound to a domain and to the first host fingerprint that authenticates —
+a failed attempt never consumes the seat.
+
 ## Scheduled jobs
 
 `GET|POST /api/cron/cleanup` (requires `Authorization: Bearer $CRON_SECRET`):

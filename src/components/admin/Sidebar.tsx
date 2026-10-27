@@ -19,6 +19,7 @@ import {
   Coins,
   Wallet,
   Cable,
+  KeyRound,
   ExternalLink,
   Menu,
   X,
@@ -69,6 +70,7 @@ export function Sidebar({
       items: [
         { href: "/admin/audit", label: at("nav.audit"), icon: ScrollText },
         { href: "/admin/mcp", label: at("nav.mcp"), icon: Plug },
+        { href: "/admin/license", label: at("nav.license"), icon: KeyRound },
         { href: "/admin/account", label: at("nav.account"), icon: Settings },
       ],
     },
