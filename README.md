@@ -238,6 +238,38 @@ stdio:
 }
 ```
 
+## Go API service
+
+The public API can run as a separate Go service (`server/`) while Next.js keeps
+the pages and admin. Both talk to the same Postgres.
+
+```
+Next.js  ── /api/quote ──┐
+         ── /api/checkout ┼──▶ Go service :8081 ──▶ Postgres
+         ── /api/discount ┘
+```
+
+Enable it with one variable:
+
+```
+GO_API_URL="http://localhost:8081"
+```
+
+- Unset → the TypeScript handlers serve everything (no behaviour change).
+- Set → those three endpoints forward to Go, falling back automatically if the
+  service is unreachable, so a Go outage degrades rather than breaks checkout.
+- Pricing was verified byte-for-byte against the TypeScript implementation
+  across 10 country/currency combinations before the switch.
+
+Run it standalone:
+
+```bash
+cd server && DATABASE_URL=... go run ./cmd/api
+docker compose up -d api
+```
+
+See `server/README.md` for the endpoint list and layout.
+
 ## Licence enforcement
 
 The store can require an activation code before it will run. Enforcement is

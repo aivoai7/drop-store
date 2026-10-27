@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { forwardToGo } from "@/lib/go-api";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -36,6 +37,15 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Delegate to the Go service when it is configured.
+  const raw = await request.text();
+  const proxied = await forwardToGo("/v1/checkout", {
+    body: raw,
+    cookie: request.headers.get("cookie") ?? undefined,
+  });
+  if (proxied) return NextResponse.json(proxied.body, { status: proxied.status });
+
+  request = new Request(request.url, { method: "POST", body: raw, headers: request.headers });
   const ip = await clientIp();
   const limit = await rateLimit(`checkout:${ip}`, 20, 10 * 60);
   if (!limit.ok) {

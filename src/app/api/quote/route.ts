@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { forwardToGo } from "@/lib/go-api";
 import { z } from "zod";
 import { priceLines, quote } from "@/lib/checkout-service";
 import { validateDiscount } from "@/lib/discounts";
@@ -22,7 +23,12 @@ const schema = z.object({
 
 /** Single pricing endpoint so cart, checkout and the client never disagree. */
 export async function POST(request: Request) {
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  // The Go service owns pricing when configured; TS stays as the fallback.
+  const raw = await request.text();
+  const proxied = await forwardToGo("/v1/quote", { body: raw });
+  if (proxied) return NextResponse.json(proxied.body, { status: proxied.status });
+
+  const parsed = schema.safeParse(JSON.parse(raw || "null"));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   const { priced, problems } = await priceLines(parsed.data.items);

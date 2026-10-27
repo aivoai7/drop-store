@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { forwardToGo } from "@/lib/go-api";
 import { z } from "zod";
 import { validateDiscount } from "@/lib/discounts";
 import { rateLimit, formatRetry } from "@/lib/rate-limit";
@@ -20,7 +21,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const raw = await request.text();
+  const proxied = await forwardToGo("/v1/discount", { body: raw });
+  if (proxied) return NextResponse.json(proxied.body, { status: proxied.status });
+
+  const parsed = schema.safeParse(JSON.parse(raw || "null"));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   const user = await getSessionUser();
