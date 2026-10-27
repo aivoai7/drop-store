@@ -8,14 +8,21 @@ export type RateMap = Record<string, number>;
 
 const OPEN_EXCHANGE = "https://openexchangerates.org/api/latest.json";
 const EXCHANGE_RATE_API = "https://v6.exchangerate-api.com/v6";
+// Keyless endpoint of the same ExchangeRate-API service; daily updates, no
+// signup. Used as the fallback so real rates work out of the box.
+const ER_API_OPEN = "https://open.er-api.com/v6/latest";
 
-function configuredProvider(): "openexchangerates" | "exchangerate-api" | "manual" {
+type Provider = "openexchangerates" | "exchangerate-api" | "erapi-open" | "manual";
+
+function configuredProvider(): Provider {
   const forced = process.env.EXCHANGE_RATE_PROVIDER;
   if (forced === "openexchangerates" && process.env.OPEN_EXCHANGE_RATES_APP_ID) return "openexchangerates";
   if (forced === "exchangerate-api" && process.env.EXCHANGE_RATE_API_KEY) return "exchangerate-api";
+  if (forced === "erapi-open") return "erapi-open";
   if (process.env.OPEN_EXCHANGE_RATES_APP_ID) return "openexchangerates";
   if (process.env.EXCHANGE_RATE_API_KEY) return "exchangerate-api";
-  return "manual";
+  // No keys anywhere: fall back to the free keyless feed.
+  return "erapi-open";
 }
 
 export function exchangeRatesConfigured() {
@@ -44,7 +51,11 @@ async function fetchRates(base: string): Promise<RateMap> {
     return json.conversion_rates;
   }
 
-  throw new Error("No exchange-rate provider configured");
+  const res = await fetch(`${ER_API_OPEN}/${base.toUpperCase()}`, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`ExchangeRate-API open feed failed (${res.status})`);
+  const json = (await res.json()) as { rates: RateMap; result?: string };
+  if (json.result && json.result !== "success") throw new Error("ExchangeRate-API open feed returned an error");
+  return json.rates;
 }
 
 export type RefreshResult = {
@@ -70,7 +81,7 @@ export async function refreshExchangeRates(baseCurrency = "usd"): Promise<Refres
       provider,
       updated: [],
       skipped: [],
-      error: "No exchange-rate provider configured. Set OPEN_EXCHANGE_RATES_APP_ID or EXCHANGE_RATE_API_KEY.",
+      error: "No exchange-rate provider configured.",
     };
   }
 
