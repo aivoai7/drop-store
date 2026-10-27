@@ -1,4 +1,5 @@
-import { stripeClient } from "../gateways/stripe-gateway";
+import Stripe from "stripe";
+import { getGatewaySecrets } from "../gateway-config";
 import type { TaxProvider, TaxQuoteInput, TaxQuoteResult } from "./types";
 
 /**
@@ -10,13 +11,15 @@ export const stripeTaxProvider: TaxProvider = {
   code: "stripe_tax",
   label: "Stripe Tax",
 
-  isConfigured() {
-    return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_TAX_ENABLED === "true");
+  async isConfigured(): Promise<boolean> {
+    const { stripe } = await getGatewaySecrets();
+    return Boolean(stripe?.secretKey && process.env.STRIPE_TAX_ENABLED === "true");
   },
 
   async quote(input: TaxQuoteInput): Promise<TaxQuoteResult> {
-    const stripe = stripeClient();
-    if (!stripe) throw new Error("Stripe is not configured");
+    const { stripe: secrets } = await getGatewaySecrets();
+    if (!secrets?.secretKey) throw new Error("Stripe is not configured");
+    const stripe = new Stripe(secrets.secretKey);
 
     const currency = input.currency.toLowerCase();
     const result = await stripe.tax.calculations.create({

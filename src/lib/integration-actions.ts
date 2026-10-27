@@ -31,3 +31,68 @@ export async function refreshRatesAction() {
     : `error=${encodeURIComponent(result.error ?? "Refresh failed")}`;
   redirect(`/admin/integrations?${query}`);
 }
+
+/* ---------------- payment gateways ---------------- */
+
+import { saveGatewaySecrets, deleteGatewaySecrets } from "./gateway-config";
+
+export type GatewayFormState = { error?: string } | undefined;
+
+function redirectWith(search: string) {
+  revalidatePath("/admin/integrations");
+  redirect(`/admin/integrations?${search}`);
+}
+
+export async function saveGatewayKeys(_prev: GatewayFormState, formData: FormData): Promise<GatewayFormState> {
+  const admin = await getAdminUser();
+  if (!admin) redirect("/admin/login");
+  if (!canEdit(admin.role)) redirect("/admin/integrations?denied=1");
+
+  const gateway = String(formData.get("gateway") ?? "");
+  if (gateway !== "stripe" && gateway !== "paypal") return { error: "未知网关" };
+
+  const get = (k: string) => String(formData.get(k) ?? "").trim();
+
+  let secrets: Record<string, string>;
+  if (gateway === "stripe") {
+    const secretKey = get("secretKey");
+    const webhookSecret = get("webhookSecret");
+    if (!secretKey) return { error: "at least secretKey" };
+    secrets = { secretKey, ...(webhookSecret ? { webhookSecret } : {}) };
+  } else {
+    const clientId = get("clientId");
+    const clientSecret = get("clientSecret");
+    const webhookId = get("webhookId");
+    if (!clientId || !clientSecret) return { error: "at least clientId+clientSecret" };
+    secrets = { clientId, clientSecret, ...(webhookId ? { webhookId } : {}) };
+  }
+
+  const result = await saveGatewaySecrets(gateway, secrets);
+  if (!result.ok) return { error: result.error };
+
+  await recordAudit({
+    actor: admin,
+    action: `gateway.${gateway}.keysSaved`,
+    target: gateway,
+    ip: await clientIp(),
+  });
+  redirectWith("saved=1");
+}
+
+export async function removeGatewayKeys(formData: FormData) {
+  const admin = await getAdminUser();
+  if (!admin) redirect("/admin/login");
+  if (!canEdit(admin.role)) redirect("/admin/integrations?denied=1");
+
+  const gateway = String(formData.get("gateway") ?? "");
+  if (gateway !== "stripe" && gateway !== "paypal") return;
+
+  await deleteGatewaySecrets(gateway);
+  await recordAudit({
+    actor: admin,
+    action: `gateway.${gateway}.keysRemoved`,
+    target: gateway,
+    ip: await clientIp(),
+  });
+  redirectWith("removed=1");
+}

@@ -55,7 +55,11 @@ export interface PaymentGateway {
   readonly label: string;
   /** Methods this gateway is capable of, regardless of what's enabled. */
   supports(method: PaymentMethodCode): boolean;
-  isConfigured(): boolean;
+  /**
+   * Credentials can come from the database (admin-edited), so this is async.
+   * Returns the resolved secret source: "db" | "env" | null.
+   */
+  isConfigured(): Promise<"db" | "env" | null>;
   start(input: StartPaymentInput): Promise<StartPaymentResult>;
   refund(input: RefundInput): Promise<RefundResult>;
   /** Returns null when the signature/provider is invalid. */

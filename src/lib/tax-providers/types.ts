@@ -22,6 +22,6 @@ export type TaxQuoteResult = {
 export interface TaxProvider {
   readonly code: string;
   readonly label: string;
-  isConfigured(): boolean;
+  isConfigured(): boolean | Promise<boolean>;
   quote(input: TaxQuoteInput): Promise<TaxQuoteResult>;
 }

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { getGatewaySecrets } from "../gateway-config";
 import type {
   GatewayEvent,
   PaymentGateway,
@@ -10,6 +11,8 @@ import type {
 } from "./types";
 
 let client: Stripe | null = null;
+/** The secret the cached client was built with; rebuilds when admin saves new keys. */
+let clientSecret: string | null = null;
 
 function stubConfig(): Partial<Stripe.StripeConfig> {
   const base = process.env.STRIPE_API_BASE;
@@ -18,17 +21,28 @@ function stubConfig(): Partial<Stripe.StripeConfig> {
   return port ? { host, port: Number(port), protocol: "http" } : { host: base, protocol: "http" };
 }
 
-export function stripeClient() {
-  const secret = process.env.STRIPE_SECRET_KEY;
-  if (!secret) return null;
-  if (!client) {
+function buildClient(secret: string): Stripe {
+  if (!client || clientSecret !== secret) {
     client = new Stripe(secret, {
       apiVersion: "2026-09-30.endive" as Stripe.LatestApiVersion,
       appInfo: { name: "DROP Store" },
       ...stubConfig(),
     });
+    clientSecret = secret;
   }
   return client;
+}
+
+/** Resolves the active secret key: DB row first, env fallback second. */
+async function activeSecret(): Promise<{ secret: string; source: "db" | "env" } | null> {
+  const { stripe } = await getGatewaySecrets();
+  if (!stripe?.secretKey) return null;
+  return { secret: stripe.secretKey, source: stripe.source };
+}
+
+async function webhookSecret(): Promise<string | null> {
+  const { stripe } = await getGatewaySecrets();
+  return stripe?.webhookSecret ?? null;
 }
 
 /**
@@ -44,13 +58,15 @@ export const stripeGateway: PaymentGateway = {
     return method === "card" || method === "apple_pay" || method === "google_pay";
   },
 
-  isConfigured() {
-    return Boolean(process.env.STRIPE_SECRET_KEY);
+  async isConfigured() {
+    const active = await activeSecret();
+    return active?.source ?? null;
   },
 
   async start(input: StartPaymentInput): Promise<StartPaymentResult> {
-    const stripe = stripeClient();
-    if (!stripe) throw new Error("Stripe is not configured");
+    const active = await activeSecret();
+    if (!active) throw new Error("Stripe is not configured");
+    const stripe = buildClient(active.secret);
 
     const amount = (base: number) => Math.round(base * input.fxRate);
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = input.lines.map((line) => ({
@@ -101,8 +117,9 @@ export const stripeGateway: PaymentGateway = {
   },
 
   async refund(input: RefundInput): Promise<RefundResult> {
-    const stripe = stripeClient();
-    if (!stripe) return { ok: false, reason: "Stripe is not configured" };
+    const active = await activeSecret();
+    if (!active) return { ok: false, reason: "Stripe is not configured" };
+    const stripe = buildClient(active.secret);
     try {
       const refund = await stripe.refunds.create({
         payment_intent: input.paymentReference,
@@ -116,9 +133,11 @@ export const stripeGateway: PaymentGateway = {
   },
 
   async verifyAndParse(request: Request, rawBody: string): Promise<GatewayEvent | null> {
-    const stripe = stripeClient();
-    const secret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!stripe || !secret) return null;
+    const secret = await webhookSecret();
+    if (!secret) return null;
+    const active = await activeSecret();
+    if (!active) return null;
+    const stripe = buildClient(active.secret);
 
     const signature = request.headers.get("stripe-signature");
     if (!signature) return null;

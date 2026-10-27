@@ -5,14 +5,17 @@ import { stripeTaxProvider } from "./stripe-tax";
 
 export const providers: TaxProvider[] = [stripeTaxProvider, taxJarProvider, localTaxProvider];
 
-export function activeProvider(): TaxProvider {
+export async function activeProvider(): Promise<TaxProvider> {
   const requested = process.env.TAX_PROVIDER;
   if (requested) {
-    const match = providers.find((p) => p.code === requested && p.isConfigured());
-    if (match) return match;
+    for (const p of providers) {
+      if (p.code === requested && (await p.isConfigured())) return p;
+    }
   }
-  const auto = providers.find((p) => p.code !== "local" && p.isConfigured());
-  return auto ?? localTaxProvider;
+  for (const p of providers) {
+    if (p.code !== "local" && (await p.isConfigured())) return p;
+  }
+  return localTaxProvider;
 }
 
 /**
@@ -20,7 +23,7 @@ export function activeProvider(): TaxProvider {
  * than charging the locally configured one, so we fall back rather than fail.
  */
 export async function quoteTax(input: TaxQuoteInput): Promise<TaxQuoteResult> {
-  const provider = activeProvider();
+  const provider = await activeProvider();
   if (provider.code === "local") return provider.quote(input);
 
   try {

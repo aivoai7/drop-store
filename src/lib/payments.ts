@@ -3,15 +3,20 @@ import { prisma } from "./db";
 import { absolute } from "./site";
 import { sendEmail } from "./email";
 import { gatewayByCode } from "./gateways";
+import { getGatewaySecrets } from "./gateway-config";
 import type { PaymentMethodCode } from "./gateways/types";
 import { refundEmail } from "./email-templates";
 
-const secret = process.env.STRIPE_SECRET_KEY;
-
-/** Stripe is optional: without a key the store falls back to the demo checkout. */
-export const stripeEnabled = Boolean(secret);
+/**
+ * Stripe is optional: without a key (DB row or env) the store falls back to the
+ * demo checkout. Both sources are checked because admin-saved keys live in the
+ * database; this is a helper page export, so it stays a snapshot of env only —
+ * pages that need the live answer await stripeGateway.isConfigured().
+ */
+export const stripeEnabled = Boolean(process.env.STRIPE_SECRET_KEY);
 
 let client: Stripe | null = null;
+let clientSecret: string | null = null;
 
 /** Splits STRIPE_API_BASE ("127.0.0.1:4545") into the host/port/protocol the SDK wants. */
 function stubConfig(): Partial<Stripe.StripeConfig> {
@@ -23,14 +28,16 @@ function stubConfig(): Partial<Stripe.StripeConfig> {
     : { host: base, protocol: "http" };
 }
 
-export function getStripe() {
-  if (!secret) return null;
-  if (!client) {
-    client = new Stripe(secret, {
+async function getStripe(): Promise<Stripe | null> {
+  const { stripe: secrets } = await getGatewaySecrets();
+  if (!secrets?.secretKey) return null;
+  if (!client || clientSecret !== secrets.secretKey) {
+    client = new Stripe(secrets.secretKey, {
       apiVersion: "2026-09-30.endive" as Stripe.LatestApiVersion,
       appInfo: { name: "DROP Store" },
       ...stubConfig(),
     });
+    clientSecret = secrets.secretKey;
   }
   return client;
 }
@@ -56,7 +63,7 @@ export async function createStripeCheckout(input: {
   currency?: string;
   fxRate?: number;
 }) {
-  const stripe = getStripe();
+  const stripe = await getStripe();
   if (!stripe) throw new Error("Stripe is not configured");
 
   const currency = (input.currency ?? "usd").toUpperCase();
@@ -261,7 +268,7 @@ export async function markOrderPaidManually(input: {
 
 /** Captures a Stripe session from the admin, e.g. after a webhook was missed. */
 export async function syncFromStripe(orderId: string) {
-  const stripe = getStripe();
+  const stripe = await getStripe();
   if (!stripe) return { ok: false as const, reason: "Stripe is not configured" };
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });

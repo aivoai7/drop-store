@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { getGatewaySecrets } from "../gateway-config";
 import type {
   GatewayEvent,
   PaymentGateway,
@@ -17,19 +18,21 @@ function apiBase() {
   return process.env.PAYPAL_API_BASE ?? BASE_URL;
 }
 
-export const paypalConfigured = Boolean(
-  process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET,
-);
+/** Active credentials: DB row (admin-edited) wins over env. */
+async function credentials(): Promise<{ id: string; secret: string; webhookId: string | null; source: "db" | "env" } | null> {
+  const { paypal } = await getGatewaySecrets();
+  if (!paypal) return null;
+  return { id: paypal.clientId, secret: paypal.clientSecret, webhookId: paypal.webhookId ?? null, source: paypal.source };
+}
 
 async function accessToken(): Promise<string> {
-  const id = process.env.PAYPAL_CLIENT_ID;
-  const secret = process.env.PAYPAL_CLIENT_SECRET;
-  if (!id || !secret) throw new Error("PayPal is not configured");
+  const creds = await credentials();
+  if (!creds) throw new Error("PayPal is not configured");
 
   const res = await fetch(`${apiBase()}/v1/oauth2/token`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`,
+      Authorization: `Basic ${Buffer.from(`${creds.id}:${creds.secret}`).toString("base64")}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
@@ -51,8 +54,9 @@ export const paypalGateway: PaymentGateway = {
     return method === "paypal";
   },
 
-  isConfigured() {
-    return paypalConfigured;
+  async isConfigured() {
+    const creds = await credentials();
+    return creds?.source ?? null;
   },
 
   async start(input: StartPaymentInput): Promise<StartPaymentResult> {
@@ -143,8 +147,9 @@ export const paypalGateway: PaymentGateway = {
   },
 
   async verifyAndParse(request: Request, rawBody: string): Promise<GatewayEvent | null> {
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-    if (!webhookId || !paypalConfigured) return null;
+    const creds = await credentials();
+    const webhookId = creds?.webhookId ?? null;
+    if (!webhookId || !creds) return null;
 
     // PayPal signs webhooks with a server-side verification call, not a local HMAC.
     const token = await accessToken();
