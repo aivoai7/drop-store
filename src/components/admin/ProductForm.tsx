@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { at } from "@/lib/admin-copy/zh";
 import { adminPath } from "@/lib/admin-path";
@@ -366,10 +366,20 @@ const MAX_BYTES = 8 * 1024 * 1024;
  * drag-free reordering (move left) and remove. State is the newline-joined
  * URL list the form posts as `images`, so the server contract is unchanged.
  */
+type Usage = { files: number; mb: number };
+
 function ImageUploader({ imageList, onChange }: { imageList: string[]; onChange: (v: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [usage, setUsage] = useState<Usage | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/storage")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: Usage | null) => d && setUsage(d))
+      .catch(() => {});
+  }, []);
 
   function commit(next: string[]) {
     onChange(next.join("\n"));
@@ -399,7 +409,13 @@ function ImageUploader({ imageList, onChange }: { imageList: string[]; onChange:
         setError(`${file.name} 上传失败`);
       }
     }
-    if (uploaded.length) commit([...imageList, ...uploaded]);
+    if (uploaded.length) {
+      commit([...imageList, ...uploaded]);
+      fetch("/api/admin/storage")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: Usage | null) => d && setUsage(d))
+        .catch(() => {});
+    }
     setBusy(false);
   }
 
@@ -452,6 +468,11 @@ function ImageUploader({ imageList, onChange }: { imageList: string[]; onChange:
         )}
       </label>
       {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+      {usage && (
+        <p className="mt-2 text-[10px] text-neutral-600">
+          图片库：{usage.files} 张 · {usage.mb} MB
+        </p>
+      )}
 
       {imageList.length > 0 && (
         <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
