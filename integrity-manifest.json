@@ -1,5 +1,5 @@
 {
-  "version": 1793189439005,
+  "version": 1793190090576,
   "files": {
     "src/lib/license/config.ts": "6670292b8247354f0ff9f6df5c5e467e59d249b12a7a351e34950c232b647a9e",
     "src/lib/license/state.ts": "26b7eb495b23bd480072e3083037495298d136c3914f692db8ba8ff071640c13",
@@ -11,5 +11,5 @@
     "src/lib/discounts.ts": "086eeb9d2fbde663fefcf4ca794ec5d407f5c937cdca8828374c64db79363bd8",
     "src/app/api/license/status/route.ts": "2c421ef680c11784478ece12dc5c95ae8744d789bfd54bd6ebff2a80a75d7c27"
   },
-  "signature": "ZPcEJjuU2kCigNuOUgPObr5fTyDCV9+BxG8ZbK5ccCpuQMw5myehwrk2HqIK8aOZoX8maHEY02cmUe2P0unwDg=="
+  "signature": "lqyezOw5TyFxVmboQRWdwU/cRmBt0UBO7pNw/8lvBO0G7KlJCGExanb55YctA+m9sN0Ynv9N0eG4F58IS4FWDA=="
 }

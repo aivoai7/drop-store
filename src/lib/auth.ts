@@ -7,6 +7,20 @@ const ADMIN_COOKIE = "drop_admin";
 const SESSION_DAYS = 30;
 const ADMIN_HOURS = 8;
 
+/**
+ * True when the deployment serves plain HTTP on a loopback host (local dev or
+ * a self-hosted test box). Browsers treat localhost as a secure context, so
+ * dropping the Secure flag there is safe; real domains in production keep it.
+ */
+function isLocalDeployment() {
+  const site = (process.env.SITE_URL ?? "").toLowerCase();
+  if (/^https:\/\/localhost|^http:\/\/localhost|^http:\/\/127\.0\.0\.1|^http:\/\/\[::1\]/.test(site)) {
+    return true;
+  }
+  // No SITE_URL configured and not on Vercel — assume a self-hosted box.
+  return !site && !process.env.VERCEL_URL;
+}
+
 export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -23,7 +37,7 @@ export async function createSession(userId: string) {
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && !isLocalDeployment(),
     path: "/",
     expires: expiresAt,
   });
@@ -97,7 +111,11 @@ export async function createAdminSession(input: {
   store.set(ADMIN_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Secure cookies never travel over plain HTTP, which would silently drop
+    // the session on self-hosted http:// deployments. Browsers exempt
+    // localhost from the Secure restriction, but next start does not know the
+    // host — so detect it here.
+    secure: process.env.NODE_ENV === "production" && !isLocalDeployment(),
     path: "/",
     expires: expiresAt,
   });
