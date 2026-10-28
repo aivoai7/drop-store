@@ -156,27 +156,8 @@ export function ProductForm({
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
                 <label className={label}>{at("pf.images")}</label>
-                <textarea
-                  name="images"
-                  required
-                  rows={5}
-                  value={imageText}
-                  onChange={(e) => setImageText(e.target.value)}
-                  className={`${field} font-mono text-xs`}
-                  placeholder="https://images.unsplash.com/…"
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {imageList.slice(0, 6).map((src, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element -- admin preview matches storefront conventions
-                    <img
-                      key={i}
-                      src={src}
-                      alt=""
-                      className={`h-16 w-16 border object-cover ${i === 0 ? "border-lime-400" : "border-white/15"}`}
-                    />
-                  ))}
-                </div>
-                <p className="mt-2 text-[10px] text-neutral-600">{at("pf.firstImageHint")}</p>
+                <ImageUploader imageList={imageList} onChange={setImageText} />
+                <p className="mt-2 text-[10px] text-neutral-600">{at("pf.uploadHint")}</p>
               </div>
               <div className="space-y-4">
                 <div>
@@ -375,5 +356,150 @@ export function ProductForm({
         </div>
       </div>
     </form>
+  );
+}
+
+const MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Product image manager: drag-and-drop or click to upload, thumbnails with
+ * drag-free reordering (move left) and remove. State is the newline-joined
+ * URL list the form posts as `images`, so the server contract is unchanged.
+ */
+function ImageUploader({ imageList, onChange }: { imageList: string[]; onChange: (v: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  function commit(next: string[]) {
+    onChange(next.join("\n"));
+  }
+
+  async function upload(files: FileList | null) {
+    if (!files?.length) return;
+    setError(null);
+    setBusy(true);
+    const uploaded: string[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_BYTES) {
+        setError(`${file.name} 超过 8 MB`);
+        continue;
+      }
+      const body = new FormData();
+      body.append("file", file);
+      try {
+        const res = await fetch("/api/admin/upload", {
+          method: "POST",
+          body,
+        });
+        const json = (await res.json()) as { url?: string; error?: string };
+        if (json.url) uploaded.push(json.url);
+        else setError(json.error ?? `${file.name} 上传失败`);
+      } catch {
+        setError(`${file.name} 上传失败`);
+      }
+    }
+    if (uploaded.length) commit([...imageList, ...uploaded]);
+    setBusy(false);
+  }
+
+  function move(index: number, delta: -1 | 1) {
+    const next = [...imageList];
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    commit(next);
+  }
+
+  function remove(index: number) {
+    commit(imageList.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div>
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          void upload(e.dataTransfer.files);
+        }}
+        className={`grid cursor-pointer place-items-center border border-dashed px-4 py-6 text-center transition-colors ${
+          dragOver ? "border-lime-400 bg-lime-400/5" : "border-white/25 hover:border-white/50"
+        }`}
+      >
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+          multiple
+          className="sr-only"
+          onChange={(e) => {
+            void upload(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        {busy ? (
+          <span className="text-xs uppercase tracking-widest text-neutral-400">上传中…</span>
+        ) : (
+          <span className="text-xs text-neutral-400">
+            <span className="font-bold text-lime-400">点击上传</span> 或拖拽图片到此处
+            <span className="mt-1 block text-[10px] text-neutral-600">JPG / PNG / WebP / AVIF / GIF · 最大 8 MB · 可多选</span>
+          </span>
+        )}
+      </label>
+      {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+
+      {imageList.length > 0 && (
+        <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {imageList.map((src, i) => (
+            <li key={`${src}-${i}`} className="group relative">
+              {/* eslint-disable-next-line @next/next/no-img-element -- admin thumbnails match storefront conventions */}
+              <img
+                src={src}
+                alt=""
+                className={`aspect-square w-full border object-cover ${i === 0 ? "border-lime-400" : "border-white/15"}`}
+              />
+              {i === 0 && (
+                <span className="absolute left-1 top-1 bg-lime-400 px-1 py-0.5 text-[9px] font-black tracking-widest text-black">
+                  主图
+                </span>
+              )}
+              <div className="absolute inset-x-0 bottom-0 hidden justify-between bg-black/80 px-1 py-1 group-hover:flex">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  className="px-1 text-[11px] text-white disabled:opacity-30"
+                  aria-label="前移"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="px-1 text-[11px] text-red-400"
+                  aria-label="删除"
+                >
+                  ✕
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === imageList.length - 1}
+                  className="px-1 text-[11px] text-white disabled:opacity-30"
+                  aria-label="后移"
+                >
+                  →
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

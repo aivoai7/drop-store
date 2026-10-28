@@ -17,7 +17,10 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   const isStatic =
-    pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/static");
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/static") ||
+    pathname.startsWith("/uploads/");
   if (isStatic) return NextResponse.next();
 
   // The admin area moved to ADMIN_BASE (unlisted). Anything hitting the old
@@ -31,6 +34,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/license") ||
     pathname.startsWith("/api/webhooks") ||
     pathname.startsWith("/api/cron") ||
+    // Admin APIs enforce session + role themselves; the storefront licence
+    // cookie is irrelevant to them.
+    pathname.startsWith("/api/admin") ||
     // The admin area enforces the licence inside its own pages; bouncing the
     // login screen through /license just flickers for signed-in admins.
     pathname.startsWith(ADMIN_BASE);

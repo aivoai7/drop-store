@@ -122,6 +122,7 @@ export const adminZh = {
   "pf.secPricing": "定价",
   "pf.secMedia": "媒体与展示",
   "pf.secVariants": "规格与库存",
+  "pf.uploadHint": "上传的图片存储在服务器 public/uploads/ 下；第一张自动作为主图。",
   "pf.firstImageHint": "描边高亮的是第一张图（商品卡缩略图）。",
   "pf.preview": "前台预览",
   "pf.previewNoImage": "暂无图片",
