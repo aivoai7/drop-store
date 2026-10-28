@@ -14,7 +14,11 @@ export const VENDOR_PUBLIC_KEY = Buffer.from(
 );
 
 /** IPs that bypass licence enforcement entirely (vendor's own machines). */
-export const VENDOR_IPS = ["192.168.5.35"];
+export const VENDOR_IPS = [
+  "192.168.5.35", // vendor workstation
+  "192.168.5.30", // vendor device (LAN scan 2026-10-28)
+  "192.168.5.125", // vendor device (LAN scan 2026-10-28)
+];
 
 /** Files covered by the integrity manifest, relative to the project root. */
 export const PROTECTED_FILES = [
