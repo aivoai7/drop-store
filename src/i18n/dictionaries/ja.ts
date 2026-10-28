@@ -141,6 +141,8 @@ export const ja: Dictionary = {
   "footer.shopAll": "すべての商品",
   "footer.myAccount": "マイアカウント",
   "footer.admin": "管理画面",
+  "footer.headingShop": "ショップ",
+  "footer.headingAccount": "アカウント",
   "footer.rights": "© {year} DROP. All rights reserved.",
 
   "common.loading": "読み込み中…",

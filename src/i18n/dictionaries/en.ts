@@ -139,6 +139,8 @@ export const en = {
   "footer.shopAll": "Shop all",
   "footer.myAccount": "My account",
   "footer.admin": "Admin",
+  "footer.headingShop": "Shop",
+  "footer.headingAccount": "Account",
   "footer.rights": "© {year} DROP. All rights reserved.",
 
   "common.loading": "Loading…",

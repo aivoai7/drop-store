@@ -141,6 +141,8 @@ export const de: Dictionary = {
   "footer.shopAll": "Alle Produkte",
   "footer.myAccount": "Mein Konto",
   "footer.admin": "Admin",
+  "footer.headingShop": "Shop",
+  "footer.headingAccount": "Konto",
   "footer.rights": "© {year} DROP. Alle Rechte vorbehalten.",
 
   "common.loading": "Wird geladen…",

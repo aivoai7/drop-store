@@ -141,6 +141,8 @@ export const zh: Dictionary = {
   "footer.shopAll": "全部商品",
   "footer.myAccount": "我的账户",
   "footer.admin": "管理后台",
+  "footer.headingShop": "选购",
+  "footer.headingAccount": "账户",
   "footer.rights": "© {year} DROP。保留所有权利。",
 
   "common.loading": "加载中…",
