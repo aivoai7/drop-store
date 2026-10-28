@@ -49,6 +49,7 @@ export default async function NewProductPage({
             sizes: ["One Size"],
             images: [],
             variantStock: {},
+          variantPrice: {},
           }}
           categories={categories}
           action={createProduct}

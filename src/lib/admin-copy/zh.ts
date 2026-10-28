@@ -118,6 +118,13 @@ export const adminZh = {
 
   // product form
   "pf.newTitle": "新建商品",
+  "pf.secBasic": "基本信息",
+  "pf.secPricing": "定价",
+  "pf.secMedia": "媒体与展示",
+  "pf.secVariants": "规格与库存",
+  "pf.firstImageHint": "描边高亮的是第一张图（商品卡缩略图）。",
+  "pf.preview": "前台预览",
+  "pf.previewNoImage": "暂无图片",
   "pf.newSubtitle": "保存为草稿，切换为「已上架」后才会在前台显示。",
   "pf.editTitle": "编辑商品",
   "pf.name": "名称",

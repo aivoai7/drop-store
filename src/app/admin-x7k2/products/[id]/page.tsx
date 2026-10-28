@@ -5,7 +5,7 @@ import { getAdminUser } from "@/lib/auth";
 import { money, parseList } from "@/lib/format";
 import { canEdit } from "@/lib/permissions";
 import { ProductForm } from "@/components/admin/ProductForm";
-import { deleteProduct, updateProduct, updateVariantStock } from "@/lib/product-actions";
+import { deleteProduct, updateProduct } from "@/lib/product-actions";
 import { at } from "@/lib/admin-copy/zh";
 import { adminPath } from "@/lib/admin-path";
 
@@ -32,7 +32,11 @@ export default async function EditProductPage({
 
   const editable = canEdit(admin.role);
   const variantStock: Record<string, number> = {};
-  for (const v of product.variants) variantStock[`${v.color}|${v.size}`] = v.stock;
+  const variantPrice: Record<string, string> = {};
+  for (const v of product.variants) {
+    variantStock[`${v.color}|${v.size}`] = v.stock;
+    variantPrice[`${v.color}|${v.size}`] = v.price != null ? (v.price / 100).toFixed(2) : "";
+  }
 
   return (
     <div>
@@ -87,6 +91,7 @@ export default async function EditProductPage({
               sizes: parseList(product.sizes),
               images: parseList(product.images),
               variantStock,
+              variantPrice,
             }}
             categories={categories}
             action={updateProduct}
@@ -98,53 +103,6 @@ export default async function EditProductPage({
           {at("pf.readOnly")}
         </div>
       )}
-
-      <h2 className="mt-10 text-xs font-black uppercase tracking-widest text-neutral-400">{at("pf.variantStock")}</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[520px] text-left text-sm">
-          <thead className="border-b border-white/15 text-[10px] uppercase tracking-widest text-neutral-500">
-            <tr>
-              <th className="py-2 pr-3">{at("pf.sku")}</th>
-              <th className="py-2 pr-3">{at("pf.color")}</th>
-              <th className="py-2 pr-3">{at("pf.size")}</th>
-              <th className="py-2 pr-3">{at("c.price")}</th>
-              <th className="py-2">{at("c.stock")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/10">
-            {product.variants.map((v) => (
-              <tr key={v.id}>
-                <td className="py-2 pr-3 font-mono text-[11px] text-neutral-400">{v.sku}</td>
-                <td className="py-2 pr-3 text-xs">{v.color}</td>
-                <td className="py-2 pr-3 text-xs">{v.size}</td>
-                <td className="py-2 pr-3 text-xs">{money(v.price ?? product.price)}</td>
-                <td className="py-2">
-                  {editable ? (
-                    <form action={updateVariantStock} className="flex items-center gap-1">
-                      <input type="hidden" name="variantId" value={v.id} />
-                      <input type="hidden" name="productId" value={product.id} />
-                      <input
-                        name="stock"
-                        type="number"
-                        min={0}
-                        defaultValue={v.stock}
-                        className={`w-16 border px-2 py-1 text-sm ${
-                          v.stock === 0 ? "border-red-500 text-red-400" : v.stock <= 5 ? "border-amber-500 text-amber-400" : "border-white/20"
-                        }`}
-                      />
-                      <button className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
-                        Save
-                      </button>
-                    </form>
-                  ) : (
-                    <span>{v.stock}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
