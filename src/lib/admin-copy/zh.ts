@@ -437,6 +437,7 @@ export const adminZh = {
 
   // admin account
   "acc.title": "账户",
+  "acc.subtitle": "个人资料、团队与角色管理。",
   "acc.team": "团队成员",
   "acc.roles": "角色权限",
   "acc.changePassword": "修改密码",
