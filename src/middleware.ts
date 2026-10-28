@@ -30,7 +30,10 @@ export function middleware(request: NextRequest) {
     pathname === "/license" ||
     pathname.startsWith("/api/license") ||
     pathname.startsWith("/api/webhooks") ||
-    pathname.startsWith("/api/cron");
+    pathname.startsWith("/api/cron") ||
+    // The admin area enforces the licence inside its own pages; bouncing the
+    // login screen through /license just flickers for signed-in admins.
+    pathname.startsWith(ADMIN_BASE);
   if (licenceExempt) return NextResponse.next();
 
   // Enforcement is off unless the deployment declares a licence server.
